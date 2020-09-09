@@ -567,11 +567,12 @@ consumer.Block = (
       func.addCommand(command);
     }
   }
+  const last = tokens[0];
   validate_next_destructive(tokens, "}");
   if (!opts.dummy) {
     func.confirm(file);
     if (opts.ref) {
-      return func.getReference();
+      return { ref: func.getReference(), last };
     }
     return func.toString();
   } else {
@@ -619,7 +620,11 @@ consumer.Loop = (file, token, tokens, func, type = consumer.Generic, parent, fun
 
 function handlemacro(file, _token, name, args, tokens) {
   while (tokens[0].token === "{") {
-    args.push(consumer.Block(file, tokens, "inline_macro_argument", { ref: true }));
+    let last = consumer.Block(file, tokens, "inline_macro_argument", { ref: true });
+    args.push(last.ref);
+    while (tokens[0].token != "{" && tokens[0].line === last.last.line) {
+      args.push(tokens.shift().token);
+    }
   }
   if (!_token.file) {
     args = args.map(evaluate_str);
