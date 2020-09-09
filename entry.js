@@ -262,7 +262,7 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
     throw new UserError(token.substr(5).trim(), _token.line)
   } else if (token.startsWith("macro")) {
     const [, name, ...args] = token.split(" ");
-    handlemacro(_token, name, args, tokens);
+    handlemacro(file, _token, name, args, tokens);
   } else if (/^execute\s*\(/.test(token)) {
     const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
     func.addCommand(
@@ -486,7 +486,7 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
     if (!_Macros[name] && MacroCache[_token.file])
       _Macros = MacroCache[_token.file].macros;
     if (_Macros[name] && !_token.args) {
-      handlemacro(_token, name, args, tokens);
+      handlemacro(file, _token, name, args, tokens);
     } else if (token.startsWith("execute")) {
       const local_token = token.replace(/ run execute/g, "");//nope.
       const startOfCommand = local_token.indexOf(" run");
@@ -570,6 +570,9 @@ consumer.Block = (
   validate_next_destructive(tokens, "}");
   if (!opts.dummy) {
     func.confirm(file);
+    if (opts.ref) {
+      return func.getReference();
+    }
     return func.toString();
   } else {
     return func;
@@ -614,8 +617,10 @@ consumer.Loop = (file, token, tokens, func, type = consumer.Generic, parent, fun
   delete env[name];
 };
 
-function handlemacro(_token, name, args, tokens) {
-  debugger;
+function handlemacro(file, _token, name, args, tokens) {
+  while (tokens[0].token === "{") {
+    args.push(consumer.Block(file, tokens, "inline_macro_argument", { ref: true }));
+  }
   if (!_token.file) {
     args = args.map(evaluate_str);
     if (Macros[name]) {
