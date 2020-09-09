@@ -615,6 +615,7 @@ consumer.Loop = (file, token, tokens, func, type = consumer.Generic, parent, fun
 };
 
 function handlemacro(_token, name, args, tokens) {
+  debugger;
   if (!_token.file) {
     args = args.map(evaluate_str);
     if (Macros[name]) {
