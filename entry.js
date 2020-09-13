@@ -647,7 +647,7 @@ function handlemacro(file, _token, name, args, tokens) {
                 args.push(segment);
             }
         }
-        args = args.filter(Boolean).map(evaluate_str);
+        args = args.filter(Boolean).map((e) => evaluate_str(e).trim());
         if (Macros[name]) {
             const _tokens = [...Macros[name].map(_ => {
                 return copy_token(_, args);
