@@ -7,6 +7,7 @@ const CompilerError = require("!errors/CompilerError");
 const UserError = require("!errors/UserError");
 const File = require("!io/File");
 const { MCFunction, loadFunction, tickFunction, loadFile, evaluate_str } = require("./io");
+const { evaluateCodeWithEnv } = require("./code-runner");
 const consumer = {};
 const SRC_DIR = path.resolve(process.cwd() + "/src");
 
@@ -27,7 +28,9 @@ function getMacro(filepath, dependent) {
     if (fs.existsSync(filepath)) {
         if (!MacroCache[filepath]) {
             MacroCache[filepath] = {
-                macros: {}, dependents: [], filepath,
+                macros: {},
+                dependents: [],
+                filepath,
                 importedMacros: {}
             }
             const tokens = tokenize(fs.readFileSync(filepath, "utf-8")).map(token => {
@@ -70,10 +73,13 @@ function getMacro(filepath, dependent) {
         throw new CompilerError(`macro file not found '${filepath}'`)
     }
 }
-
-const evaluate = (line) => {
+const evaluate = (line, token) => {
     try {
-        return new Function("return " + line).bind(env)();
+        return evaluateCodeWithEnv(`return ${line}`, {
+            config: env,
+            type: (index) => token.args[index].type
+        });
+        // return new Function("type", "return " + line).bind(env)((index, type) => token.args[index].type === type);
     } catch (e) {
         return true;
     }
@@ -89,11 +95,13 @@ class Token {
     }
 }
 
-const tokenize = (str) =>
-    str.split("\n").reduce((p, n, index) => {
+const tokenize = (str) => {
+    let inML = false;
+    return str.split("\n").reduce((p, n, index) => {
         n = n.trim();
-        if (n[0] === "#") return p;
-        if (!n) return p;
+        if (n.startsWith("###"))
+            inML = !inML;
+        if (inML || n[0] === "#" || !n) return p;
         if (n[0] === "}") {
             p.push(new Token(index, "}"));
             n = n.slice(1);
@@ -107,6 +115,7 @@ const tokenize = (str) =>
         }
         return p;
     }, []);
+}
 
 function validate_next_destructive(tokens, expect) {
     const token = tokens.shift();
@@ -155,7 +164,7 @@ consumer.Entry = (file, tokens, once) => {
             const condition = token.substr(4, token.length - 5);
             tokens.shift();
             validate_next_destructive(tokens, "{");
-            if (evaluate(condition)) {
+            if (evaluate(condition, _token)) {
                 while (tokens[0].token != "}") {
                     consumer.Entry(file, tokens, true);
                 }
@@ -172,7 +181,7 @@ consumer.Entry = (file, tokens, once) => {
             const condition = token.substr(1);
             tokens.shift();
             validate_next_destructive(tokens, "{");
-            if (evaluate("this." + condition)) {
+            if (evaluate(condition)) {
                 while (tokens[0].token != "}") {
                     consumer.Entry(file, tokens, true);
                 }
@@ -188,8 +197,7 @@ consumer.Entry = (file, tokens, once) => {
         } else {
             tokens.shift();
             throw new CompilerError(
-                `unexpected token '${token}' before ${
-                tokens[0]
+                `unexpected token '${token}' before ${tokens[0]
                     ? tokens[0].token.length > 10
                         ? tokens[0].token.substr(0, 10) + "..."
                         : tokens[0].token
@@ -246,13 +254,25 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
         } while (next && next != "%%>");
         try {
             MacroStorage[_token.file || "mc"] = MacroStorage[_token.file || "mc"] || new Map();
-            new Function("emit", "args", "storage", code).bind(Object.create(env))((command, isLoad = false) => {
+            new Function("emit", "args", "storage", code).bind(env)((command, isLoad = false) => {
                 if (isLoad) {
                     LoadFunction.addCommand(String(command));
                 } else {
                     func.addCommand(String(command));
                 }
             }, _token.args, MacroStorage[_token.file || "mc"]);
+            evaluateCodeWithEnv(code, {
+                emit: (command, isLoad = false) => {
+                    if (isLoad) {
+                        LoadFunction.addCommand(String(command));
+                    } else {
+                        func.addCommand(String(command));
+                    }
+                },
+                args: _token.args,
+                storage: MacroStorage[_token.file || "mc"],
+                type: (index) => _token.args[index].type
+            })
         } catch (e) {
             throw new CompilerError("JS: " + e.message, _token.line);
         }
@@ -285,8 +305,7 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
             token = tokens.shift().token;
             const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
             func.addCommand(
-                `execute if score #execute ${
-                CONFIG.internalScoreboard
+                `execute if score #execute ${CONFIG.internalScoreboard
                 } matches 0 ${condition} run ${consumer.Block(
                     file,
                     tokens,
@@ -304,8 +323,7 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
         if (/^else/.test(tokens[0].token)) {
             tokens.shift();
             func.addCommand(
-                `execute if score #execute ${
-                CONFIG.internalScoreboard
+                `execute if score #execute ${CONFIG.internalScoreboard
                 } matches 0 run ${consumer.Block(
                     file,
                     tokens,
@@ -319,7 +337,7 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
     } else if (/^!IF\(/.test(token)) {
         const condition = token.substr(4, token.length - 5);
         validate_next_destructive(tokens, "{");
-        if (evaluate(condition)) {
+        if (evaluate(condition, _token)) {
             while (tokens[0].token != "}") {
                 consumer.Generic(file, tokens, func);
             }
@@ -335,7 +353,7 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
     } else if (/^!.+/.test(token)) {
         const condition = token.substr(1);
         validate_next_destructive(tokens, "{");
-        if (evaluate("this." + condition)) {
+        if (evaluate(condition, _token)) {
             while (tokens[0].token != "}") {
                 consumer.Generic(file, tokens, func);
             }
@@ -509,11 +527,7 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
                 func.addCommand(token);
             }
         } else {
-            if (func === true) {
-                tokens.unshift(new Token(token.line))
-            } else {
-                func.addCommand(token);
-            }
+            func.addCommand(token);
         }
     }
 };
@@ -590,7 +604,7 @@ consumer.Loop = (file, token, tokens, func, type = consumer.Generic, parent, fun
         name = parts.pop();
         count = parts.join(",");
     }
-    count = evaluate(count);
+    count = evaluate(count, token);
     validate_next_destructive(tokens, "{");
     if (Array.isArray(count)) {
         for (let i = 0; i < count.length - 1; i++) {
@@ -631,23 +645,34 @@ function handlemacro(file, _token, name, args, tokens) {
         args = [];
         let inblock = false;
         let block = "";
-        debugger;
         while (segments.length > 0) {
             let segment = segments.shift();
             if (segment.startsWith("<")) {
-                block = segment.substr(1) + " ";
+                if (segment.indexOf(":") != -1) {
+                    block = {
+                        content: segment.substr(segment.indexOf(":") + 1),
+                        type: segment.substr(1, segment.indexOf(":") - 1)
+                    }
+                } else {
+                    block = {
+                        content: segment.substr(1) + " ",
+                        type: "unkown"
+                    };
+                }
                 inblock = true;
             } else if (segment.endsWith(">")) {
                 inblock = false;
-                block += segment.substr(0, segment.length - 1);
-                args.push(block.trim());
+                block.content += segment.substr(0, segment.length - 1);
+                block.content = block.content.trim();
+                args.push(block);
             } else if (inblock) {
-                block += segment + " ";
+                block.content += segment + " ";
             } else {
-                args.push(segment);
+                args.push({ content: segment, type: "unkown" });
             }
         }
-        args = args.filter(Boolean).map((e) => evaluate_str(e).trim());
+        args = args.filter(arg => Boolean(arg.content));
+        console.log({ ...args });
         if (Macros[name]) {
             const _tokens = [...Macros[name].map(_ => {
                 return copy_token(_, args);
@@ -655,7 +680,7 @@ function handlemacro(file, _token, name, args, tokens) {
             for (let i = 0; i < _tokens.length; i++) {
                 const t = _tokens[i];
                 for (let j = args.length - 1; j >= 0; j--) {
-                    t.token = t.token.replace(new RegExp("\\$\\$" + j, "g"), args[j]);
+                    t.token = t.token.replace(new RegExp("\\$\\$" + j, "g"), args[j].value);
                 }
             }
             tokens.unshift(..._tokens);
@@ -715,7 +740,7 @@ function MC_LANG_HANDLER(file) {
     tickFunction.reset(file);
     MacroStorage = {};
     if (fs.existsSync(file)) {
-        env = CONFIG;
+        env = { config: CONFIG };
         MCFunction.setEnv(env);
         ifId = 0;
         id = {};
