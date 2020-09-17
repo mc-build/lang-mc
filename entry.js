@@ -7,10 +7,11 @@ const CompilerError = require("!errors/CompilerError");
 const UserError = require("!errors/UserError");
 const File = require("!io/File");
 const { MCFunction, loadFunction, tickFunction, loadFile, evaluate_str } = require("./io");
-const { evaluateCodeWithEnv } = require("./code-runner");
+const { evaluateCodeWithEnv, bindCodeToEnv } = require("./code-runner");
+const { EventEmitter } = require("events");
 const consumer = {};
 const SRC_DIR = path.resolve(process.cwd() + "/src");
-
+const MC_LANG_EVENTS = new EventEmitter();
 
 
 let id = 0;
@@ -126,7 +127,29 @@ function validate_next_destructive(tokens, expect) {
         );
     }
 }
+function list({ getToken, actions, def }) {
 
+    const invoker = (file, tokens, ...args) => {
+        const token = invoker.getToken(tokens);
+        const action = invoker.actions.find(action => action.match(token));
+        if (!action) {
+            return invoker.def(file, tokens, ...args);
+        } else {
+            return action.exec(file, tokens, ...args);
+        }
+    }
+    invoker.actions = actions.map((action, index) => {
+        action.priority = index;
+        return action;
+    });
+    invoker.def = def;
+    invoker.getToken = getToken;
+    invoker.addAction = (action, priority = invoker.actions.length) => {
+        action.priority = priority;
+        invoker.actions = [action, ...invoker.actions].sort((a, b) => a.priority - b.priority);
+    }
+    return invoker;
+}
 consumer.Namespace = (file, token, tokens) => {
     const name = evaluate_str(token.substr("dir ".length));
     namespaceStack.push(name.trim());
@@ -137,76 +160,117 @@ consumer.Namespace = (file, token, tokens) => {
     validate_next_destructive(tokens, "}");
     namespaceStack.pop();
 };
+consumer.EntryOp = list({
+    getToken: tokenlist => tokenlist[0],
+    actions: [
+        {
+            match: token => token.token.startsWith("import"),
+            exec(file, tokens) {
 
-consumer.Entry = (file, tokens, once) => {
-    let breakout = false;
-    while (tokens[0] && !breakout) {
-        const { token } = tokens[0];
-        if (token.startsWith("import")) {
-            const target = token.substr(7).trim();
-            Macros = Object.assign(Macros, getMacro(path.resolve(path.parse(file).dir, target), file));
-            tokens.shift();
-        } else if (/dir .+/.test(token)) {
-            consumer.Namespace(file, tokens.shift().token, tokens);
-        } else if (/function .+/.test(token)) {
-            consumer.Function(file, tokens);
-        } else if (/clock .+/.test(token)) {
-            const time = token.substr(6);
-            tokens.shift();
-            const func = consumer.Block(file, tokens, "clock", {
-                prepend: ["schedule function $block " + time],
-            });
-            loadFunction.set(file, func.substr(9));
-        } else if (/^LOOP/.test(token)) {
-            const _token = tokens.shift();
-            consumer.Loop(file, _token.token, tokens, true, consumer.Entry);
-        } else if (/^!IF\(/.test(token)) {
-            const condition = token.substr(4, token.length - 5);
-            tokens.shift();
-            validate_next_destructive(tokens, "{");
-            if (evaluate(condition, _token)) {
-                while (tokens[0].token != "}") {
-                    consumer.Entry(file, tokens, true);
-                }
-                validate_next_destructive(tokens, "}");
-            } else {
-                let count = 1;
-                while (count && tokens.length) {
-                    let item = tokens.shift().token;
-                    if (item === "{") count++;
-                    if (item === "}") count--;
+                const { token } = tokens[0]
+                const target = token.substr(7).trim();
+                Macros = Object.assign(Macros, getMacro(path.resolve(path.parse(file).dir, target), file));
+                tokens.shift();
+            }
+        },
+        {
+            match: ({ token }) => /dir .+/.test(token),
+            exec(file, tokens) {
+                consumer.Namespace(file, tokens.shift().token, tokens);
+            }
+        },
+        {
+            match: ({ token }) => /function .+/.test(token),
+            exec(file, tokens) {
+                consumer.Function(file, tokens);
+            }
+        },
+        {
+            match: ({ token }) => /clock .+/.test(token),
+            exec(file, tokens) {
+                const { token } = tokens[0]
+                const time = token.substr(6);
+                tokens.shift();
+                const func = consumer.Block(file, tokens, "clock", {
+                    prepend: ["schedule function $block " + time],
+                });
+                loadFunction.set(file, func.substr(9));
+            }
+        },
+        {
+            match: ({ token }) => /^LOOP/.test(token),
+            exec(file, tokens) {
+                const _token = tokens.shift();
+                consumer.Loop(file, _token.token, tokens, true, consumer.Entry);
+            }
+        },
+        {
+            match: ({ token }) => /^!IF\(/.test(token),
+            exec(file, tokens) {
+                const _token = tokens.shift();
+                const { token } = _token;
+                const condition = token.substr(4, token.length - 5);
+                tokens.shift();
+                validate_next_destructive(tokens, "{");
+                if (evaluate(condition, _token)) {
+                    while (tokens[0].token != "}") {
+                        consumer.Entry(file, tokens, true);
+                    }
+                    validate_next_destructive(tokens, "}");
+                } else {
+                    let count = 1;
+                    while (count && tokens.length) {
+                        let item = tokens.shift().token;
+                        if (item === "{") count++;
+                        if (item === "}") count--;
+                    }
                 }
             }
-        } else if (/^!.+/.test(token)) {
-            const condition = token.substr(1);
-            tokens.shift();
-            validate_next_destructive(tokens, "{");
-            if (evaluate(condition)) {
-                while (tokens[0].token != "}") {
-                    consumer.Entry(file, tokens, true);
-                }
-                validate_next_destructive(tokens, "}");
-            } else {
-                let count = 1;
-                while (count && tokens.length) {
-                    let item = tokens.shift().token;
-                    if (item === "{") count++;
-                    if (item === "}") count--;
+        },
+        {
+            match: ({ token }) => /^!.+\(/.test(token),
+            exec(file, tokens) {
+                const { token } = tokens[0];
+                const condition = token.substr(1);
+                tokens.shift();
+                validate_next_destructive(tokens, "{");
+                if (evaluate(condition)) {
+                    while (tokens[0].token != "}") {
+                        consumer.Entry(file, tokens, true);
+                    }
+                    validate_next_destructive(tokens, "}");
+                } else {
+                    let count = 1;
+                    while (count && tokens.length) {
+                        let item = tokens.shift().token;
+                        if (item === "{") count++;
+                        if (item === "}") count--;
+                    }
                 }
             }
-        } else {
-            tokens.shift();
-            throw new CompilerError(
-                `unexpected token '${token}' before ${tokens[0]
-                    ? tokens[0].token.length > 10
-                        ? tokens[0].token.substr(0, 10) + "..."
-                        : tokens[0].token
-                    : "EOF"
-                }`,
-                token.line
-            );
         }
-        breakout = once;
+    ],
+    def: (file, tokens) => {
+
+        const { token } = tokens.shift();
+        throw new CompilerError(
+            `unexpected token '${token}' before ${tokens[0]
+                ? tokens[0].token.length > 10
+                    ? tokens[0].token.substr(0, 10) + "..."
+                    : tokens[0].token
+                : "EOF"
+            }`,
+            token.line
+        );
+    }
+});
+consumer.Entry = (file, tokens, once) => {
+    if (once) {
+        consumer.EntryOp(file, tokens)
+    } else {
+        while (tokens[0]) {
+            consumer.EntryOp(file, tokens);
+        }
     }
 };
 
@@ -236,267 +300,351 @@ consumer.Function = (file, tokens, opts = {}) => {
     func.confirm(file);
     return func;
 };
-
-consumer.Generic = (file, tokens, func, parent, functionalparent) => {
-    let _token = tokens.shift();
-    let { token } = _token;
-    if (token === "load") {
-        const contents = consumer.Block(file, tokens, "load", { dummy: true }, null, null);
-        for (let i = 0; i < contents.functions.length; i++) {
-            LoadFunction.addCommand(contents.functions[i]);
-        }
-    } else if (token === "<%%") {
-        let code = "";
-        let next = null;
-        do {
-            next = tokens.shift().token;
-            if (next != "%%>") code += "\n" + next;
-        } while (next && next != "%%>");
-        try {
-            MacroStorage[_token.file || "mc"] = MacroStorage[_token.file || "mc"] || new Map();
-            new Function("emit", "args", "storage", code).bind(env)((command, isLoad = false) => {
-                if (isLoad) {
-                    LoadFunction.addCommand(String(command));
-                } else {
-                    func.addCommand(String(command));
+consumer.Generic = list({
+    getToken: list => list[0],
+    actions: [
+        {
+            match: ({ token }) => token === "load",
+            exec(file, tokens) {
+                tokens.shift();
+                const contents = consumer.Block(file, tokens, "load", { dummy: true }, null, null);
+                for (let i = 0; i < contents.functions.length; i++) {
+                    LoadFunction.addCommand(contents.functions[i]);
                 }
-            }, _token.args, MacroStorage[_token.file || "mc"]);
-            evaluateCodeWithEnv(code, {
-                emit: (command, isLoad = false) => {
-                    if (isLoad) {
-                        LoadFunction.addCommand(String(command));
-                    } else {
-                        func.addCommand(String(command));
+            }
+        },
+        {
+            match: ({ token }) => token === "<%%",
+            exec(file, tokens) {
+                const _token = tokens.shift().token;
+                let code = "";
+                let next = null;
+                do {
+                    next = tokens.shift().token;
+                    if (next != "%%>") code += "\n" + next;
+                } while (next && next != "%%>");
+                try {
+                    MacroStorage[_token.file || "mc"] = MacroStorage[_token.file || "mc"] || new Map();
+                    new Function("emit", "args", "storage", code).bind(env)((command, isLoad = false) => {
+                        if (isLoad) {
+                            LoadFunction.addCommand(String(command));
+                        } else {
+                            func.addCommand(String(command));
+                        }
+                    }, _token.args, MacroStorage[_token.file || "mc"]);
+                    evaluateCodeWithEnv(code, {
+                        emit: (command, isLoad = false) => {
+                            if (isLoad) {
+                                LoadFunction.addCommand(String(command));
+                            } else {
+                                func.addCommand(String(command));
+                            }
+                        },
+                        args: _token.args,
+                        storage: MacroStorage[_token.file || "mc"],
+                        type: (index) => _token.args[index].type
+                    })
+                } catch (e) {
+                    throw new CompilerError("JS: " + e.message, _token.line);
+                }
+            }
+        },
+        {
+            match: ({ token }) => token.startsWith("warn "),
+            exec(file, tokens) {
+                const { token } = tokens.shift();
+                logger.warn(evaluate_str(token.substr(5).trim()));
+            }
+        },
+        {
+            match: ({ token }) => token.startsWith("error "),
+            exec(file, tokens) {
+                const _token = tokens.shift();
+                const { token } = _token;
+                throw new UserError(token.substr(5).trim(), _token.line)
+            }
+        },
+        {
+            match: ({ token }) => token.startsWith("macro"),
+            exec(file, tokens) {
+                const _token = tokens.shift().token;
+                const [, name, ...args] = token.split(" ");
+                handlemacro(file, _token, name, args, tokens);
+            }
+        },
+        {
+            match: ({ token }) => /^execute\s*\(/.test(token),
+            exec(file, tokens) {
+                const { token } = tokens.shift();
+                const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
+                func.addCommand(
+                    `scoreboard players set #execute ${CONFIG.internalScoreboard} 0`
+                );
+                func.addCommand(
+                    `execute ${condition} run ${consumer.Block(
+                        file,
+                        tokens,
+                        "conditional",
+                        {
+                            append: [`scoreboard players set #execute ${CONFIG.internalScoreboard} 1`],
+                        },
+                        parent,
+                        functionalparent
+                    )}`
+                );
+                while (/^else execute\s*\(/.test(tokens[0].token)) {
+                    token = tokens.shift().token;
+                    const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
+                    func.addCommand(
+                        `execute if score #execute ${CONFIG.internalScoreboard
+                        } matches 0 ${condition} run ${consumer.Block(
+                            file,
+                            tokens,
+                            "conditional",
+                            {
+                                append: [
+                                    `scoreboard players set #execute ${CONFIG.internalScoreboard} 1`,
+                                ],
+                            },
+                            parent,
+                            functionalparent
+                        )}`
+                    );
+                }
+                if (/^else/.test(tokens[0].token)) {
+                    tokens.shift();
+                    func.addCommand(
+                        `execute if score #execute ${CONFIG.internalScoreboard
+                        } matches 0 run ${consumer.Block(
+                            file,
+                            tokens,
+                            "conditional",
+                            {},
+                            parent,
+                            functionalparent
+                        )}`
+                    );
+                }
+            }
+        },
+        {
+            match: ({ token }) => /^!IF\(/.test(token),
+            exec(file, tokens, func) {
+
+                const _token = tokens.shift();
+                const { token } = _token;
+                const condition = token.substr(4, token.length - 5);
+                validate_next_destructive(tokens, "{");
+                if (evaluate(condition, _token)) {
+                    while (tokens[0].token != "}") {
+                        consumer.Generic(file, tokens, func);
                     }
-                },
-                args: _token.args,
-                storage: MacroStorage[_token.file || "mc"],
-                type: (index) => _token.args[index].type
-            })
-        } catch (e) {
-            throw new CompilerError("JS: " + e.message, _token.line);
-        }
-    } else if (token.startsWith("warn ")) {
-        logger.warn(evaluate_str(token.substr(5).trim()));
-    } else if (token.startsWith("error ")) {
-        throw new UserError(token.substr(5).trim(), _token.line)
-    } else if (token.startsWith("macro")) {
-        const [, name, ...args] = token.split(" ");
-        handlemacro(file, _token, name, args, tokens);
-    } else if (/^execute\s*\(/.test(token)) {
-        const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
-        func.addCommand(
-            `scoreboard players set #execute ${CONFIG.internalScoreboard} 0`
-        );
-        func.addCommand(
-            `execute ${condition} run ${consumer.Block(
-                file,
-                tokens,
-                "conditional",
-                {
-                    append: [`scoreboard players set #execute ${CONFIG.internalScoreboard} 1`],
-                },
-                parent,
-                functionalparent
-            )}`
-        );
-        const regex_elseif = /^else execute\s*\(/;
-        while (regex_elseif.test(tokens[0].token)) {
-            token = tokens.shift().token;
-            const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
-            func.addCommand(
-                `execute if score #execute ${CONFIG.internalScoreboard
-                } matches 0 ${condition} run ${consumer.Block(
+                    validate_next_destructive(tokens, "}");
+                } else {
+                    let count = 1;
+                    while (count && tokens.length) {
+                        let item = tokens.shift().token;
+                        if (item === "{") count++;
+                        if (item === "}") count--;
+                    }
+                }
+            }
+        },
+        {
+            match: ({ token }) => /^!.+/.test(token),
+            exec(file, tokens) {
+                const _token = tokens.shift();
+                const { token } = _token;
+                const condition = token.substr(1);
+                validate_next_destructive(tokens, "{");
+                if (evaluate(condition, _token)) {
+                    while (tokens[0].token != "}") {
+                        consumer.Generic(file, tokens, func);
+                    }
+                    validate_next_destructive(tokens, "}");
+                } else {
+                    let count = 1;
+                    while (count && tokens.length) {
+                        let item = tokens.shift().token;
+                        if (item === "{") count++;
+                        if (item === "}") count--;
+                    }
+                }
+            }
+        },
+        {
+            match: ({ token }) => /^block/.test(token),
+            exec(file, tokens, func, parent) {
+                tokens.shift();
+                func.addCommand(consumer.Block(file, tokens, "block", {}, parent, null));
+            }
+        },
+        {
+            match: ({ token }) => token.endsWith(" run") && token.startsWith("execute"),
+            exec(file, tokens, func, parent) {
+                func.addCommand(
+                    token + " " + consumer.Block(file, tokens, "execute", {}, parent, null)
+                );
+            }
+        },
+        {
+            match: ({ token }) => /^LOOP/.test(token),
+            exec(file, tokens, func) {
+                const { token } = tokens.shift();
+                consumer.Loop(file, token, tokens, func, consumer.Generic, null, null);
+            }
+        },
+        {
+            match: ({ token }) => /until\s*\(/.test(token),
+            exec(file, tokens, func, parent, functionalparent) {
+                const { token } = tokens.shift();
+                const args = token.substr(6, token.length - 7);
+                const cond = args.substr(0, args.lastIndexOf(",")).trim();
+                const time = args.substr(args.lastIndexOf(",") + 1).trim();
+                const call = consumer.Block(file, tokens, "until", {}, parent, null);
+                const untilFunc = new MCFunction();
+                const name =
+                    "__generated__/until/" +
+                    (id.until = (id.until == undefined ? -1 : id.until) + 1);
+                const _id = id.until;
+                untilFunc.namespace = namespaceStack[0];
+                untilFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
+                untilFunc.addCommand(
+                    `scoreboard players set #until_${_id} ${CONFIG.internalScoreboard} 0`
+                );
+                untilFunc.addCommand(
+                    `execute store success score #until_${_id} ${CONFIG.internalScoreboard} ${cond} run ${call}`
+                );
+                untilFunc.addCommand(
+                    `execute if score #until_${_id} ${CONFIG.internalScoreboard} matches 0 run schedule function $block ${time}`
+                );
+                untilFunc.confirm(file);
+                func.addCommand(`function ${untilFunc.getReference()}`);
+            }
+        },
+        {
+            match: ({ token }) => /^async while/.test(token),
+            exec(file, tokens, func, parent) {
+                const { token } = tokens.shift();
+                const args = token.substr(12, token.length - 13);
+                const cond = args.substr(0, args.lastIndexOf(",")).trim();
+                const time = args.substr(args.lastIndexOf(",") + 1).trim();
+                const whileFunc = new MCFunction();
+                const name =
+                    "__generated__/while/" +
+                    (id.while = (id.while == undefined ? -1 : id.while) + 1);
+
+                whileFunc.namespace = namespaceStack[0];
+                whileFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
+                const whileAction = consumer.Block(
                     file,
                     tokens,
-                    "conditional",
+                    "while",
                     {
                         append: [
-                            `scoreboard players set #execute ${CONFIG.internalScoreboard} 1`,
+                            `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 1`,
+                            `schedule function ${whileFunc.getReference()} ${time}`,
                         ],
                     },
                     parent,
-                    functionalparent
-                )}`
-            );
-        }
-        if (/^else/.test(tokens[0].token)) {
-            tokens.shift();
-            func.addCommand(
-                `execute if score #execute ${CONFIG.internalScoreboard
-                } matches 0 run ${consumer.Block(
+                    func
+                );
+                whileFunc.addCommand(`scoreboard players set #WHILE LANG_MC_INTERNAL 0`);
+                whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
+
+                if (/^finally$/.test(tokens[0].token)) {
+                    token = tokens.shift().token;
+                    const whileFinally = consumer.Block(
+                        file,
+                        tokens,
+                        "while",
+                        {},
+                        whileFunc,
+                        func
+                    );
+                    whileFunc.addCommand(
+                        `execute if score #WHILE ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
+                    );
+                }
+
+                whileFunc.confirm(file);
+                func.addCommand(`function ${whileFunc.getReference()}`);
+            }
+        },
+        {
+            match: ({ token }) => /^while/.test(token),
+            exec(file, tokens, func, parent) {
+                const { token } = tokens.shift();
+                const args = token.substr(6, token.length - 7);
+                const cond = args.trim();
+                const whileFunc = new MCFunction();
+                const name =
+                    "__generated__/while/" +
+                    (id.while = (id.while == undefined ? -1 : id.while) + 1);
+
+                whileFunc.namespace = namespaceStack[0];
+                whileFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
+                const whileAction = consumer.Block(
                     file,
                     tokens,
-                    "conditional",
-                    {},
+                    "while",
+                    {
+                        append: [
+                            `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 1`,
+                            `function ${whileFunc.getReference()}`,
+                        ],
+                    },
                     parent,
-                    functionalparent
-                )}`
-            );
-        }
-    } else if (/^!IF\(/.test(token)) {
-        const condition = token.substr(4, token.length - 5);
-        validate_next_destructive(tokens, "{");
-        if (evaluate(condition, _token)) {
-            while (tokens[0].token != "}") {
-                consumer.Generic(file, tokens, func);
+                    func
+                );
+                whileFunc.addCommand(`scoreboard players set #WHILE LANG_MC_INTERNAL 0`);
+                whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
+
+                if (/^finally$/.test(tokens[0].token)) {
+                    token = tokens.shift().token;
+                    const whileFinally = consumer.Block(
+                        file,
+                        tokens,
+                        "while",
+                        {},
+                        whileFunc,
+                        func
+                    );
+                    whileFunc.addCommand(
+                        `execute if score #WHILE ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
+                    );
+                }
+
+                whileFunc.confirm(file);
+                func.addCommand(`function ${whileFunc.getReference()}`);
             }
-            validate_next_destructive(tokens, "}");
-        } else {
-            let count = 1;
-            while (count && tokens.length) {
-                let item = tokens.shift().token;
-                if (item === "{") count++;
-                if (item === "}") count--;
+        },
+        {
+            match: ({ token }) => /^schedule\s?((\d|\.)+(d|t|s))\s?(append|replace){0,1}$/.test(token),
+            exec(file, tokens, func, parent, functionalparent) {
+                const { token } = tokens.shift();
+                const inner_func = consumer.Block(file, tokens, "schedule", {}, parent, functionalparent);
+                const [, time, type] = token.split(/\s+/)
+                func.addCommand(`schedule ${inner_func} ${time} ${type}`.trim())
+            }
+        },
+        {
+            match: ({ token }) => token === "(",
+            exec(file, tokens, func) {
+                tokens.shift();
+                let items = "";
+                let next = tokens.shift();
+                while (next.token != ")") {
+                    items += next.token + " ";
+                    next = tokens.shift();
+                }
+                func.addCommand(items.trim());
             }
         }
-    } else if (/^!.+/.test(token)) {
-        const condition = token.substr(1);
-        validate_next_destructive(tokens, "{");
-        if (evaluate(condition, _token)) {
-            while (tokens[0].token != "}") {
-                consumer.Generic(file, tokens, func);
-            }
-            validate_next_destructive(tokens, "}");
-        } else {
-            let count = 1;
-            while (count && tokens.length) {
-                let item = tokens.shift().token;
-                if (item === "{") count++;
-                if (item === "}") count--;
-            }
-        }
-    } else if (/^block/.test(token)) {
-        func.addCommand(consumer.Block(file, tokens, "block", {}, parent, null));
-    } else if (token.endsWith(" run") && token.startsWith("execute")) {
-        func.addCommand(
-            token + " " + consumer.Block(file, tokens, "execute", {}, parent, null)
-        );
-    } else if (/^LOOP/.test(token)) {
-        consumer.Loop(file, token, tokens, func, consumer.Generic, null, null);
-    } else if (/until\s*\(/.test(token)) {
-        const args = token.substr(6, token.length - 7);
-        const cond = args.substr(0, args.lastIndexOf(",")).trim();
-        const time = args.substr(args.lastIndexOf(",") + 1).trim();
-        const call = consumer.Block(file, tokens, "until", {}, parent, null);
-        const untilFunc = new MCFunction();
-        const name =
-            "__generated__/until/" +
-            (id.until = (id.until == undefined ? -1 : id.until) + 1);
-        const _id = id.until;
-        untilFunc.namespace = namespaceStack[0];
-        untilFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
-        untilFunc.addCommand(
-            `scoreboard players set #until_${_id} ${CONFIG.internalScoreboard} 0`
-        );
-        untilFunc.addCommand(
-            `execute store success score #until_${_id} ${CONFIG.internalScoreboard} ${cond} run ${call}`
-        );
-        untilFunc.addCommand(
-            `execute if score #until_${_id} ${CONFIG.internalScoreboard} matches 0 run schedule function $block ${time}`
-        );
-        untilFunc.confirm(file);
-        func.addCommand(`function ${untilFunc.getReference()}`);
-    } else if (/^async while/.test(token)) {
-        const args = token.substr(12, token.length - 13);
-        const cond = args.substr(0, args.lastIndexOf(",")).trim();
-        const time = args.substr(args.lastIndexOf(",") + 1).trim();
-        const whileFunc = new MCFunction();
-        const name =
-            "__generated__/while/" +
-            (id.while = (id.while == undefined ? -1 : id.while) + 1);
-
-        whileFunc.namespace = namespaceStack[0];
-        whileFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
-        const whileAction = consumer.Block(
-            file,
-            tokens,
-            "while",
-            {
-                append: [
-                    `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 1`,
-                    `schedule function ${whileFunc.getReference()} ${time}`,
-                ],
-            },
-            parent,
-            func
-        );
-        whileFunc.addCommand(`scoreboard players set #WHILE LANG_MC_INTERNAL 0`);
-        whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
-
-        if (/^finally$/.test(tokens[0].token)) {
-            token = tokens.shift().token;
-            const whileFinally = consumer.Block(
-                file,
-                tokens,
-                "while",
-                {},
-                whileFunc,
-                func
-            );
-            whileFunc.addCommand(
-                `execute if score #WHILE ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
-            );
-        }
-
-        whileFunc.confirm(file);
-        func.addCommand(`function ${whileFunc.getReference()}`);
-    } else if (/^while/.test(token)) {
-        const args = token.substr(6, token.length - 7);
-        const cond = args.trim();
-        const whileFunc = new MCFunction();
-        const name =
-            "__generated__/while/" +
-            (id.while = (id.while == undefined ? -1 : id.while) + 1);
-
-        whileFunc.namespace = namespaceStack[0];
-        whileFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
-        const whileAction = consumer.Block(
-            file,
-            tokens,
-            "while",
-            {
-                append: [
-                    `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 1`,
-                    `function ${whileFunc.getReference()}`,
-                ],
-            },
-            parent,
-            func
-        );
-        whileFunc.addCommand(`scoreboard players set #WHILE LANG_MC_INTERNAL 0`);
-        whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
-
-        if (/^finally$/.test(tokens[0].token)) {
-            token = tokens.shift().token;
-            const whileFinally = consumer.Block(
-                file,
-                tokens,
-                "while",
-                {},
-                whileFunc,
-                func
-            );
-            whileFunc.addCommand(
-                `execute if score #WHILE ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
-            );
-        }
-
-        whileFunc.confirm(file);
-        func.addCommand(`function ${whileFunc.getReference()}`);
-    } else if (/^schedule\s?((\d|\.)+(d|t|s))\s?(append|replace){0,1}$/.test(token)) {
-        const inner_func = consumer.Block(file, tokens, "schedule", {}, parent, functionalparent);
-        const [, time, type] = token.split(/\s+/)
-        func.addCommand(`schedule ${inner_func} ${time} ${type}`.trim())
-    } else if (token === "(") {
-        let items = "";
-        let next = tokens.shift();
-        while (next.token != ")") {
-            items += next.token + " ";
-            next = tokens.shift();
-        }
-        func.addCommand(items.trim());
-    } else {
+    ],
+    def(file, tokens, func, parent, functionalparent) {
+        const _token = tokens.shift();
+        const { token } = _token;
         const [name, ...args] = token.split(" ");
         let _Macros = Macros;
         if (MacroCache[_token.file])
@@ -530,7 +678,7 @@ consumer.Generic = (file, tokens, func, parent, functionalparent) => {
             func.addCommand(token);
         }
     }
-};
+})
 
 consumer.Block = (
     file,
@@ -672,7 +820,6 @@ function handlemacro(file, _token, name, args, tokens) {
             }
         }
         args = args.filter(arg => Boolean(arg.content));
-        console.log({ ...args });
         if (Macros[name]) {
             const _tokens = [...Macros[name].map(_ => {
                 return copy_token(_, args);
@@ -722,6 +869,9 @@ function copy_token(_, args) {
 }
 
 function MC_LANG_HANDLER(file) {
+    MC_LANG_EVENTS.emit("start", {
+        file
+    });
     Macros = {};
     const location = path.relative(SRC_DIR, file);
     namespaceStack = [
@@ -778,7 +928,14 @@ function MC_LANG_HANDLER(file) {
                 );
                 tickTag.confirm();
             }
+            MC_LANG_EVENTS.emit("end", {
+                file
+            })
         } catch (e) {
+            MC_LANG_EVENTS.emit("fail", {
+                error: e,
+                file
+            })
             console.log(e.stack);
             if (e.message === "Cannot read property 'token' of undefined") {
                 throw new CompilerError("expected more tokens", "EOF");
@@ -794,21 +951,31 @@ function MCM_LANG_HANDLER(file) {
     MacroCache[file] = null;
     if (fs.existsSync(file)) {
         try {
+            MC_LANG_EVENTS.emit("start", {
+                file
+            });
             getMacro(file);
+            for (let i of toUpdate) {
+                if (i.endsWith(".mc")) {
+                    MC_LANG_HANDLER(i);
+                } else {
+                    MCM_LANG_HANDLER(i);
+                }
+            }
+            MC_LANG_EVENTS.emit("end", {
+                file
+            });
         } catch (e) {
+            MC_LANG_EVENTS.emit("fail", {
+                error: e,
+                file
+            })
             console.log(e.stack);
             if (e.message === "Cannot read property 'token' of undefined") {
                 throw new CompilerError("expected more tokens", "EOF");
             } else {
                 throw e;
             }
-        }
-    }
-    for (let i of toUpdate) {
-        if (i.endsWith(".mc")) {
-            MC_LANG_HANDLER(i);
-        } else {
-            MCM_LANG_HANDLER(i);
         }
     }
 }
@@ -827,11 +994,37 @@ module.exports = function MC(registry) {
 
     return {
         exported: {
+            on(event, handler) {
+                MC_LANG_EVENTS.on(event, handler);
+            },
             io: {
                 loadFunction,
                 tickFunction,
                 MCFunction,
             },
+            getEnv() {
+                return env;
+            },
+            getNamespace(type) {
+                const end = namespaceStack.slice(1).join("/");
+                return {
+                    namespace: namespaceStack[0],
+                    path: end + (end.length === 0 ? "" : "/")
+                };
+            },
+            transpiler: {
+                tokenize,
+                evaluate_str,
+                consumer,
+                validate_next_destructive,
+                list,
+                evaluators: {
+                    code: {
+                        evaluateCodeWithEnv: evaluateCodeWithEnv,
+                        getFunctionWithEnv: bindCodeToEnv
+                    }
+                }
+            }
         },
     };
 };

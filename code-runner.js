@@ -12,3 +12,4 @@ function evaluateCodeWithEnv(code, env) {
     return bindCodeToEnv(code, env)();
 }
 exports.evaluateCodeWithEnv = evaluateCodeWithEnv;
+exports.bindCodeToEnv = bindCodeToEnv;
