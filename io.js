@@ -3,6 +3,7 @@ const path = require("path");
 const CompilerError = require("!errors/CompilerError");
 const CONFIG = require("!config/mc");
 const File = require("!io/File");
+const { evaluateCodeWithEnv } = require("./code-runner");
 
 let env;
 
@@ -15,7 +16,7 @@ function evaluate(line) {
         .replace(/<%/g, "${")
         .replace(/%>/g, "}")
         .replace(/\`/g, "\\`");
-      return new Function("return `" + template + "`").bind(env)();
+      return evaluateCodeWithEnv("return `" + template + "`", env);
     } catch (e) {
       return e.message;
     }
