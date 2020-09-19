@@ -482,6 +482,7 @@ consumer.Generic = list({
         {
             match: ({ token }) => token.endsWith(" run") && token.startsWith("execute"),
             exec(file, tokens, func, parent) {
+                const { token } = tokens.shift();
                 func.addCommand(
                     token + " " + consumer.Block(file, tokens, "execute", {}, parent, null)
                 );
