@@ -1,0 +1,7 @@
+{
+    "name": "lang-mc",
+    "extensions": [
+        ".mc",
+        ".mcm"
+    ]
+}

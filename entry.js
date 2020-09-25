@@ -13,6 +13,8 @@ const consumer = {};
 const SRC_DIR = path.resolve(process.cwd() + "/src");
 const MC_LANG_EVENTS = new EventEmitter();
 
+const F_LIB = process.argv.find(arg => arg.startsWith("-lib="));
+
 
 let id = 0;
 let env = {};
@@ -69,6 +71,12 @@ function getMacro(filepath, dependent) {
             }
         }
         if (dependent && !MacroCache[filepath].dependents.includes(dependent)) MacroCache[filepath].dependents.push(dependent);
+        if (F_LIB) {
+            const f = new File();
+            f.setPath("__MACRO_METADATA__/" + filepath);
+            f.setContents(JSON.stringify(MacroCache[filepath].macros));
+            f.confirm();
+        }
         return MacroCache[filepath].macros;
     } else {
         throw new CompilerError(`macro file not found '${filepath}'`)
@@ -315,7 +323,7 @@ consumer.Generic = list({
         },
         {
             match: ({ token }) => token === "<%%",
-            exec(file, tokens) {
+            exec(file, tokens, func) {
                 const _token = tokens.shift().token;
                 let code = "";
                 let next = null;
@@ -374,7 +382,7 @@ consumer.Generic = list({
         },
         {
             match: ({ token }) => /^execute\s*\(/.test(token),
-            exec(file, tokens) {
+            exec(file, tokens, func, parent, functionalparent) {
                 const { token } = tokens.shift();
                 const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
                 func.addCommand(
@@ -452,7 +460,7 @@ consumer.Generic = list({
         },
         {
             match: ({ token }) => /^!.+/.test(token),
-            exec(file, tokens) {
+            exec(file, tokens, func) {
                 const _token = tokens.shift();
                 const { token } = _token;
                 const condition = token.substr(1);
@@ -696,12 +704,15 @@ consumer.Block = (
     if (tokens[0].token.startsWith("name ")) {
         const special_thing = tokens.shift().token;
         name = evaluate_str(special_thing.substr(5)).trim();
-    } else {
+    } else if (!F_LIB) {
         name =
             "__generated__/" +
             reason +
             "/" +
             (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1);
+    } else {
+        reason = "lib"
+        name = "__lib_generated__/" + (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1)
     }
     const func = new MCFunction(parent, functionalparent);
     if (functionalparent === null) {
