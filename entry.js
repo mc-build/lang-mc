@@ -839,7 +839,7 @@ function handlemacro(file, _token, name, args, tokens) {
             for (let i = 0; i < _tokens.length; i++) {
                 const t = _tokens[i];
                 for (let j = args.length - 1; j >= 0; j--) {
-                    t.token = t.token.replace(new RegExp("\\$\\$" + j, "g"), args[j].value);
+                    t.token = t.token.replace(new RegExp("\\$\\$" + j, "g"), args[j].content);
                 }
             }
             tokens.unshift(..._tokens);
