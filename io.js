@@ -4,6 +4,7 @@ const CompilerError = require("!errors/CompilerError");
 const CONFIG = require("!config/mc");
 const File = require("!io/File");
 const { evaluateCodeWithEnv } = require("./code-runner");
+const crypto = require("crypto");
 
 let env;
 
@@ -66,6 +67,10 @@ class MCFunction extends File {
     this._path = Math.random().toString(36).substr(2);
     this.target = this;
     this.intent = intent;
+  }
+  getHash() {
+    const c = crypto.createHash("md5").update(this.functions.join("\n"));
+    return c.digest("hex");
   }
   addCommand(command) {
     this.functions.push(

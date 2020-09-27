@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-
 const CONFIG = require("!config/mc");
 const logger = require("!logger");
 const CompilerError = require("!errors/CompilerError");
@@ -15,6 +14,16 @@ const MC_LANG_EVENTS = new EventEmitter();
 
 const F_LIB = process.argv.find(arg => arg.startsWith("-lib="));
 
+let hashes = new Map();
+
+function getNameFromHash(hash, prefix) {
+    if (hashes.has(hash)) {
+        return hashes.get(hash);
+    } else {
+        hashes.set(hash, prefix + hashes.size)
+        return hashes.get(hash);
+    }
+}
 
 let id = 0;
 let env = {};
@@ -701,18 +710,22 @@ consumer.Block = (
     if (!reason) reason = "none";
     // just a clever way to only allocate a number if the namespace is used, allows me to define more namespaces as time goes on
     let name = null;
+    let name_override = null;
     if (tokens[0].token.startsWith("name ")) {
         const special_thing = tokens.shift().token;
-        name = evaluate_str(special_thing.substr(5)).trim();
+        name_override = evaluate_str(special_thing.substr(5)).trim();
     } else if (!F_LIB) {
-        name =
-            "__generated__/" +
-            reason +
-            "/" +
-            (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1);
+        name = namespaceStack.length > 1 ? "/__generated__/" :
+            "__generated__/"
+        //     + reason +
+        //     "/" +
+        //     (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1);
     } else {
         reason = "lib"
-        name = "__lib_generated__/" + (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1)
+        name = namespaceStack.length > 1 ? "/__lib_generated__/" :
+            "__lib_generated__/"
+
+        //  + (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1)
     }
     const func = new MCFunction(parent, functionalparent);
     if (functionalparent === null) {
@@ -721,7 +734,6 @@ consumer.Block = (
     // func.namespace = path.parse(file).name;
     // func.setPath(name);
     func.namespace = namespaceStack[0];
-    func.setPath(namespaceStack.slice(1).concat(name).join("/"));
     if (opts.prepend) {
         for (let command of opts.prepend) {
             func.addCommand(command);
@@ -743,6 +755,12 @@ consumer.Block = (
     }
     const last = tokens[0];
     validate_next_destructive(tokens, "}");
+    const hash = func.getHash();
+    if (name_override) {
+        func.setPath(namespaceStack.slice(1).concat(name_override).join("/"));
+    } else {
+        func.setPath(getNameFromHash(hash, namespaceStack.slice(1).join("/") + name));
+    }
     if (!opts.dummy) {
         func.confirm(file);
         if (opts.ref) {
@@ -884,6 +902,7 @@ function MC_LANG_HANDLER(file) {
     MC_LANG_EVENTS.emit("start", {
         file
     });
+    hashes = new Map();
     Macros = {};
     const location = path.relative(SRC_DIR, file);
     namespaceStack = [
