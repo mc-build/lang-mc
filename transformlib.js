@@ -15,7 +15,7 @@ module.exports = (context) => {
     }
     const lib_name = LIB_CONF.name;
     const json_files = Object.keys(files).filter((name) => name.endsWith(".json")).map(name => ({
-        name,
+        name: lib_name + "/" + name,
         content: files[name].replace(new RegExp("lib:", "g"), `lib:${lib_name}/`)
     }));
     const file_from_func = {};
@@ -24,12 +24,15 @@ module.exports = (context) => {
     keys = Object.keys(files);
     for (let func of keys) {
         if (func.endsWith(".mcfunction")) {
-            const [, name, , ...rest] = func.split("/");
+            const [, , , ...rest] = func.split("/");
             const new_name = `data/lib/functions/${lib_name}/${rest.join("/")}`;
             file_from_func[`lib:${lib_name}/${rest.join("/").replace(".mcfunction", "")}`] = new_name
             files[new_name] = files[func];
             delete files[func];
             functions.push(`lib:${lib_name}/${rest.join("/").replace(".mcfunction", "")}`);
+        } else if (func.endsWith(".json")) {
+            files[lib_name + '/' + func] = files[func];
+            delete files[func];
         }
     }
     const target = new RegExp("lib:", "g");

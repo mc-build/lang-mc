@@ -119,26 +119,32 @@ let lib_function_lookup = {};
 function includeFileList(list, file) {
     while (list.length) {
         const item = list.shift();
-        if (!included_file_list.includes(item)) {
-            included_file_list.push(item);
-            if (!item.endsWith(".json")) {
-                const f = new File();
-                f.setPath(path.resolve(process.cwd(), item));
-                f.setContents(lib_function_lookup[item].content);
-                f.confirm();
-            } else {
-                list.push(...lib_function_lookup[item].dependencies);
+        try {
+            if (!included_file_list.includes(item)) {
+                included_file_list.push(item);
+                if (!item.endsWith(".json")) {
+                    const f = new File();
+                    f.setPath(path.resolve(process.cwd(), item));
+                    f.setContents(lib_function_lookup[item].content);
+                    f.confirm();
+                } else {
+                    list.push(...lib_function_lookup[item].dependencies);
+                }
+                function toFunction(str) {
+                    const [, name, , ...rest] = str.replace(".mcfunction", "").split(/\/|\\/);
+                    return `${name}:${rest.join("/")}`;
+                }
+                if (item.endsWith("tick.mcfunction")) {
+                    tickFunction.set(file, toFunction(item));
+                }
+                if (item.endsWith("load.mcfunction")) {
+                    loadFunction.set(file, toFunction(item));
+                }
             }
-            function toFunction(str) {
-                const [, name, , ...rest] = str.replace(".mcfunction", "").split(/\/|\\/);
-                return `${name}:${rest.join("/")}`;
-            }
-            if (item.endsWith("tick.mcfunction")) {
-                tickFunction.set(file, toFunction(item));
-            }
-            if (item.endsWith("load.mcfunction")) {
-                loadFunction.set(file, toFunction(item));
-            }
+
+
+        } catch (e) {
+            console.log(item);
         }
     }
 }
