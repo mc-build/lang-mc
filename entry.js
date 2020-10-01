@@ -8,11 +8,13 @@ const File = require("!io/File");
 const { MCFunction, loadFunction, tickFunction, loadFile, evaluate_str } = require("./io");
 const { evaluateCodeWithEnv, bindCodeToEnv } = require("./code-runner");
 const { EventEmitter } = require("events");
+const { stderr } = require("process");
 const consumer = {};
 const SRC_DIR = path.resolve(process.cwd() + "/src");
 const MC_LANG_EVENTS = new EventEmitter();
 
 const F_LIB = process.argv.find(arg => arg.startsWith("-lib="));
+const PROJECT_JSON = require(path.resolve(process.cwd(), ".mcproject", "PROJECT.json"));
 
 let hashes = new Map();
 
@@ -94,7 +96,7 @@ function getMacro(filepath, dependent) {
 const evaluate = (line, token) => {
     try {
         return evaluateCodeWithEnv(`return ${line}`, {
-            config: env,
+            ...env,
             type: (index) => token.args[index].type
         });
         // return new Function("type", "return " + line).bind(env)((index, type) => token.args[index].type === type);
@@ -112,6 +114,76 @@ class Token {
         return this.token;
     }
 }
+let included_file_list = [];
+let lib_function_lookup = {};
+function includeFileList(list, file) {
+    while (list.length) {
+        const item = list.shift();
+        if (!included_file_list.includes(item)) {
+            included_file_list.push(item);
+            if (!item.endsWith(".json")) {
+                const f = new File();
+                f.setPath(path.resolve(process.cwd(), item));
+                f.setContents(lib_function_lookup[item].content);
+                f.confirm();
+            } else {
+                list.push(...lib_function_lookup[item].dependencies);
+            }
+            function toFunction(str) {
+                const [, name, , ...rest] = str.replace(".mcfunction", "").split(/\/|\\/);
+                return `${name}:${rest.join("/")}`;
+            }
+            if (item.endsWith("tick.mcfunction")) {
+                tickFunction.set(file, toFunction(item));
+            }
+            if (item.endsWith("load.mcfunction")) {
+                loadFunction.set(file, toFunction(item));
+            }
+        }
+    }
+}
+function loadLib(json) {
+    const { remote } = json;
+    let location = remote._loc;
+    const lib = require(path.resolve(location, 'build.json'));
+    const target_name = json.name.split("/")[0];
+    const macros = {};
+    const libRes = {
+        macros
+    };
+    function loadLibMacro(macro) {
+        return macro.tokens.map(raw => {
+            let token = new Token(raw.line, raw.token);
+            token.file = raw.file;
+            token.dependencies = macro.dependencies
+            return token;
+        })
+    }
+    for (let file in lib) {
+        const name = target_name + file.substr(3).replace(/\..+$/, "");
+        let current = lib[file];
+        if (current.functions) {
+            for (let func in current.functions) {
+                lib_function_lookup[func] = current.functions[func];
+            }
+        }
+        if (current.macros) {
+            macros[name] = {}
+            for (let macro in current.macros) {
+                macros[name][macro] = loadLibMacro(current.macros[macro]);
+            }
+        }
+        if (current.json) {
+            for (let json of current.json) {
+                lib_function_lookup[json.name] = json;
+            }
+        }
+    }
+    return {
+        [target_name]: libRes.macros
+    }
+}
+const libraries = Object.assign({}, ...(PROJECT_JSON.libs.map(loadLib) || []));
 
 const tokenize = (str) => {
     let inML = false;
@@ -183,10 +255,23 @@ consumer.EntryOp = list({
         {
             match: token => token.token.startsWith("import"),
             exec(file, tokens) {
-
-                const { token } = tokens[0]
+                const _token = tokens[0];
+                const { token } = _token;
                 const target = token.substr(7).trim();
-                Macros = Object.assign(Macros, getMacro(path.resolve(path.parse(file).dir, target), file));
+                if (token.endsWith(".mcm")) {
+                    Macros = Object.assign(Macros, getMacro(path.resolve(path.parse(file).dir, target), file));
+                } else {
+                    const [lib] = target.split("/");
+                    if (lib) {
+                        const library = libraries[lib];
+                        if (!library[target]) {
+                            throw new CompilerError(`did not find component for ${target} for library ${lib}`, _token.line);
+                        }
+                        Macros = Object.assign(Macros, library[target])
+                    } else {
+                        throw new CompilerError(`did not find library ${lib}`, _token.line);
+                    }
+                }
                 tokens.shift();
             }
         },
@@ -342,14 +427,8 @@ consumer.Generic = list({
                 } while (next && next != "%%>");
                 try {
                     MacroStorage[_token.file || "mc"] = MacroStorage[_token.file || "mc"] || new Map();
-                    new Function("emit", "args", "storage", code).bind(env)((command, isLoad = false) => {
-                        if (isLoad) {
-                            LoadFunction.addCommand(String(command));
-                        } else {
-                            func.addCommand(String(command));
-                        }
-                    }, _token.args, MacroStorage[_token.file || "mc"]);
                     evaluateCodeWithEnv(code, {
+                        ...env,
                         emit: (command, isLoad = false) => {
                             if (isLoad) {
                                 LoadFunction.addCommand(String(command));
@@ -384,7 +463,8 @@ consumer.Generic = list({
         {
             match: ({ token }) => token.startsWith("macro"),
             exec(file, tokens) {
-                const _token = tokens.shift().token;
+                const _token = tokens.shift();
+                const { token } = _token;
                 const [, name, ...args] = token.split(" ");
                 handlemacro(file, _token, name, args, tokens);
             }
@@ -715,10 +795,11 @@ consumer.Block = (
         const special_thing = tokens.shift().token;
         name_override = evaluate_str(special_thing.substr(5)).trim();
     } else if (!F_LIB) {
-        name = namespaceStack.length > 1 ? "/__generated__/" :
-            "__generated__/"
-        //     + reason +
-        //     "/" +
+        name = (namespaceStack.length > 1 ?
+            "/__generated__/" :
+            "__generated__/")
+            + reason +
+            "/";
         //     (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1);
     } else {
         reason = "lib"
@@ -860,6 +941,9 @@ function handlemacro(file, _token, name, args, tokens) {
                     t.token = t.token.replace(new RegExp("\\$\\$" + j, "g"), args[j].content);
                 }
             }
+            if (_tokens[0].dependencies) {
+                includeFileList([..._tokens[0].dependencies], file);
+            }
             tokens.unshift(..._tokens);
         }
         else {
@@ -895,6 +979,7 @@ function copy_token(_, args) {
     let t = new Token(_.line, _.token);
     t.file = _.file;
     t.args = args;
+    t.dependencies = _.dependencies;
     return t;
 }
 
@@ -904,6 +989,7 @@ function MC_LANG_HANDLER(file) {
     });
     hashes = new Map();
     Macros = {};
+    included_file_list = [];
     const location = path.relative(SRC_DIR, file);
     namespaceStack = [
         ...location
