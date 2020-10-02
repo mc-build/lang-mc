@@ -186,7 +186,7 @@ function loadLib(json) {
         }
     }
     return {
-        [target_name]: libRes.macros
+        [target_name.replace(/\\/g, "/")]: libRes.macros
     }
 }
 const libraries = Object.assign({}, ...(PROJECT_JSON.libs.map(loadLib) || []));
