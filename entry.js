@@ -166,7 +166,7 @@ function loadLib(json) {
         })
     }
     for (let file in lib) {
-        const name = target_name + file.substr(3).replace(/\..+$/, "");
+        const name = (target_name + file.substr(3).replace(/\..+$/, "")).replace(/\\/g, "/");
         let current = lib[file];
         if (current.functions) {
             for (let func in current.functions) {
@@ -186,7 +186,7 @@ function loadLib(json) {
         }
     }
     return {
-        [target_name.replace(/\\/g, "/")]: libRes.macros
+        [target_name]: libRes.macros
     }
 }
 const libraries = Object.assign({}, ...(PROJECT_JSON.libs.map(loadLib) || []));
