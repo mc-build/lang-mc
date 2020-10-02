@@ -77,7 +77,8 @@ module.exports = (context) => {
         json_files[i].dependencies = flatten(getDeps(json_files[i].content)).map(_ => file_from_func[_]);
     }
     if (context.ext === ".mcm") {
-        const entry = '__MACRO_METADATA__' + path.resolve(SRC_DIR, context.file);
+        const entry = path.join('__MACRO_METADATA__', path.resolve(SRC_DIR, context.file));
+        console.log(Object.keys(files), entry);
         const data = JSON.parse(files[entry]);
         const output = {};
         const load_json = Object.keys(files).find(file => file.endsWith("load.json"));
