@@ -653,7 +653,7 @@ consumer.Generic = list({
                     parent,
                     func
                 );
-                whileFunc.addCommand(`scoreboard players set #WHILE LANG_MC_INTERNAL 0`);
+                whileFunc.addCommand(`scoreboard players set #WHILE ${config.internalScoreboard} 0`);
                 whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
 
                 if (/^finally$/.test(tokens[0].token)) {
@@ -701,7 +701,7 @@ consumer.Generic = list({
                     parent,
                     func
                 );
-                whileFunc.addCommand(`scoreboard players set #WHILE LANG_MC_INTERNAL 0`);
+                whileFunc.addCommand(`scoreboard players set #WHILE ${config.internalScoreboard} 0`);
                 whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
 
                 if (/^finally$/.test(tokens[0].token)) {
