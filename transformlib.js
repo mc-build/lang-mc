@@ -78,7 +78,6 @@ module.exports = (context) => {
     }
     if (context.ext === ".mcm") {
         const entry = path.join('__MACRO_METADATA__', path.resolve(SRC_DIR, context.file)).replace(/\\/g, "/");
-        console.log(Object.keys(files), entry);
         const data = JSON.parse(files[entry]);
         const output = {};
         const load_json = Object.keys(files).find(file => file.endsWith("load.json"));

@@ -478,8 +478,8 @@ consumer.Generic = list({
         {
             match: ({ token }) => /^execute\s*\(/.test(token),
             exec(file, tokens, func, parent, functionalparent) {
-                const { token } = tokens.shift();
-                const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
+                let { token } = tokens.shift();
+                let condition = token.substring(token.indexOf("(") + 1, token.length - 1);
                 func.addCommand(
                     `scoreboard players set #execute ${CONFIG.internalScoreboard} 0`
                 );
@@ -497,7 +497,7 @@ consumer.Generic = list({
                 );
                 while (/^else execute\s*\(/.test(tokens[0].token)) {
                     token = tokens.shift().token;
-                    const condition = token.substring(token.indexOf("(") + 1, token.length - 1);
+                    condition = token.substring(token.indexOf("(") + 1, token.length - 1);
                     func.addCommand(
                         `execute if score #execute ${CONFIG.internalScoreboard
                         } matches 0 ${condition} run ${consumer.Block(
