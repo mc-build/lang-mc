@@ -8,7 +8,6 @@ const File = require("!io/File");
 const { MCFunction, loadFunction, tickFunction, loadFile, evaluate_str } = require("./io");
 const { evaluateCodeWithEnv, bindCodeToEnv } = require("./code-runner");
 const { EventEmitter } = require("events");
-const { stderr } = require("process");
 const consumer = {};
 const SRC_DIR = path.resolve(process.cwd() + "/src");
 const MC_LANG_EVENTS = new EventEmitter();
