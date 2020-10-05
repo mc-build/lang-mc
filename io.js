@@ -76,25 +76,27 @@ class MCFunction extends File {
     this.functions.push(
       evaluate(
         command
-          .replace(/\$block/g, this.namespace + ":" + this.getFunctionPath())
-          .replace(/\$top/g, this.top.getReference())
-          .replace(/\$parent/g, () => {
-            if (this.parent) {
-              return this.parent.getReference();
-            } else {
-              throw new CompilerError(
-                "$parent used where there is no valid parent."
-              );
-            }
-          })
       )
     );
+  }
+  setPath(p) {
+    this._path = p;
   }
   getReference() {
     return this.namespace + ":" + this._path;
   }
   getContents() {
-    return (CONFIG.header ? CONFIG.header + "\n\n" : "") + this.functions.join("\n");
+    return (CONFIG.header ? CONFIG.header + "\n\n" : "") + this.functions.map((command) => command.replace(/\$block/g, this.namespace + ":" + this.getFunctionPath())
+      .replace(/\$top/g, this.top.getReference())
+      .replace(/\$parent/g, () => {
+        if (this.parent) {
+          return this.parent.getReference();
+        } else {
+          throw new CompilerError(
+            "$parent used where there is no valid parent."
+          );
+        }
+      })).join("\n");
   }
   getPath() {
     return path.resolve(
