@@ -7,6 +7,7 @@ const { evaluateCodeWithEnv } = require("./code-runner");
 const crypto = require("crypto");
 
 let env;
+let _fakefs = new Set();
 
 function evaluate(line) {
   if (line.indexOf("<%") > -1 && line.indexOf("%>")) {
@@ -112,18 +113,22 @@ class MCFunction extends File {
   }
 
   confirm(file) {
-    if (this.intent === "load") {
-      loadFunction.set(file, this.getReference());
-    } else if (this.intent === "tick") {
-      tickFunction.set(file, this.getReference());
+    if (!_fakefs.has(this._path)) {
+      _fakefs.add(this._path);
+      if (this.intent === "load") {
+        loadFunction.set(file, this.getReference());
+      } else if (this.intent === "tick") {
+        tickFunction.set(file, this.getReference());
+      }
+      super.confirm();
     }
-    super.confirm();
   }
   toString() {
     return "function " + this.namespace + ":" + this.getFunctionPath()
   }
 
   static setEnv(_env) {
+    _fakefs = new Set();
     env = _env;
   }
 }

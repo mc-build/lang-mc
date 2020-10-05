@@ -723,11 +723,11 @@ consumer.Generic = list({
             }
         },
         {
-            match: ({ token }) => /^schedule\s?((\d|\.)+(d|t|s))\s?(append|replace){0,1}$/.test(token),
+            match: ({ token }) => /^schedule\s?((\d|\.)+(d|t|s)|<%.+)\s?(append|replace){0,1}$/.test(token),
             exec(file, tokens, func, parent, functionalparent) {
                 const { token } = tokens.shift();
                 const inner_func = consumer.Block(file, tokens, "schedule", {}, parent, functionalparent);
-                const [, time, type] = token.split(/\s+/)
+                const [, time, type] = evaluate_str(token).split(/\s+/)
                 func.addCommand(`schedule ${inner_func} ${time} ${type}`.trim())
             }
         },
