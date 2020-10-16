@@ -464,8 +464,8 @@ consumer.Generic = list({
           if (next != "%%>") code += "\n" + next;
         } while (next && next != "%%>");
         try {
-          MacroStorage[token.file || "mc"] =
-            MacroStorage[token.file || "mc"] || new Map();
+          MacroStorage[_token.file || "mc"] =
+            MacroStorage[_token.file || "mc"] || new Map();
           evaluateCodeWithEnv(code, {
             ...env,
             emit: (command, isLoad = false) => {
@@ -475,9 +475,9 @@ consumer.Generic = list({
                 func.addCommand(String(command));
               }
             },
-            args: token.args,
-            storage: MacroStorage[token.file || "mc"],
-            type: (index) => token.args[index].type,
+            args: _token.args,
+            storage: MacroStorage[_token.file || "mc"],
+            type: (index) => _token.args[index].type,
           });
         } catch (e) {
           throw new CompilerError("JS: " + e.message, token.line);
