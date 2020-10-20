@@ -383,9 +383,9 @@ consumer.EntryOp = list({
     },
   ],
   def: (file, tokens) => {
-    const { token } = tokens.shift();
+    const token = tokens.shift();
     throw new CompilerError(
-      `unexpected token '${token}' before ${
+      `unexpected token '${token.token}' before ${
         tokens[0]
           ? tokens[0].token.length > 10
             ? tokens[0].token.substr(0, 10) + "..."
