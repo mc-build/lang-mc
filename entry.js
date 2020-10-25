@@ -42,6 +42,7 @@ let namespaceStack = [];
 let MacroCache = {};
 let Macros = {};
 let LoadFunction = null;
+let TickFunction = null;
 let MacroStorage = {};
 
 function getMacro(filepath, dependent) {
@@ -449,6 +450,23 @@ consumer.Generic = list({
         );
         for (let i = 0; i < contents.functions.length; i++) {
           LoadFunction.addCommand(contents.functions[i]);
+        }
+      },
+    },
+    {
+      match: ({ token }) => token === "tick",
+      exec(file, tokens) {
+        tokens.shift();
+        const contents = consumer.Block(
+          file,
+          tokens,
+          "tick",
+          { dummy: true },
+          null,
+          null
+        );
+        for (let i = 0; i < contents.functions.length; i++) {
+          TickFunction.addCommand(contents.functions[i]);
         }
       },
     },
@@ -1067,6 +1085,11 @@ function MC_LANG_HANDLER(file) {
   LoadFunction.setPath(
     namespaceStack.slice(1).concat("__generated__/load").join("/")
   );
+  TickFunction = new MCFunction(null, null, "tick");
+  TickFunction.namespace = namespaceStack[0];
+  TickFunction.setPath(
+    namespaceStack.slice(1).concat("__generated__/tick").join("/")
+  );
   loadFunction.reset(file);
   tickFunction.reset(file);
   MacroStorage = {};
@@ -1082,6 +1105,9 @@ function MC_LANG_HANDLER(file) {
           new Set(LoadFunction.functions).keys()
         );
         LoadFunction.confirm(file);
+      }
+      if (TickFunction.functions.length > 0) {
+        TickFunction.confirm(file);
       }
       const loadContent = loadFunction.values();
       if (loadContent.length > 0) {
