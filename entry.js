@@ -809,6 +809,65 @@ consumer.Generic = list({
       },
     },
     {
+      match: ({ token }) => token === "sequence",
+      exec(file, tokens, func) {
+        tokens.shift();
+        const contents = consumer.Block(
+          file,
+          tokens,
+          "sequence",
+          { dummy: true },
+          null,
+          null
+        );
+        const timeToTicks = (time) => {
+          let val = +time.substr(0, time.length - 1);
+          let type = time[time.length - 1];
+          switch (type) {
+            case "s":
+              val *= 20;
+              break;
+            case "d":
+              val *= 24000;
+              break;
+          }
+          return val;
+        };
+
+        const commands = {};
+        let time = 0;
+        for (let command of contents.functions) {
+          if (command.startsWith("delay")) {
+            let delay = timeToTicks(command.substr(6).trim());
+            time += delay;
+          } else if (command.startsWith("setdelay")) {
+            let delay = timeToTicks(command.substr(9).trim());
+            time = delay;
+          } else {
+            commands[time] = commands[time] || [];
+            commands[time].push(command);
+          }
+        }
+        for (let time in commands) {
+          if (time == 0) {
+            for (const command of commands[time]) func.addCommand(command);
+          } else {
+            const subfunc = new MCFunction();
+            const name =
+              "__generated__/sequence/" +
+              (id.sequence = (id.sequence == undefined ? -1 : id.sequence) + 1);
+            subfunc.namespace = namespaceStack[0];
+            subfunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
+            for (const command of commands[time]) subfunc.addCommand(command);
+            func.addCommand(
+              `schedule function ${subfunc.toString()} ${time}t replace`
+            );
+            subfunc.confirm();
+          }
+        }
+      },
+    },
+    {
       match: ({ token }) => token === "(",
       exec(file, tokens, func) {
         tokens.shift();
