@@ -859,9 +859,7 @@ consumer.Generic = list({
             subfunc.namespace = namespaceStack[0];
             subfunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
             for (const command of commands[time]) subfunc.addCommand(command);
-            func.addCommand(
-              `schedule function ${subfunc.toString()} ${time}t replace`
-            );
+            func.addCommand(`schedule ${subfunc.toString()} ${time}t replace`);
             subfunc.confirm();
           }
         }
