@@ -1027,11 +1027,19 @@ consumer.Loop = (
 
 function handlemacro(file, _token, name, args, tokens) {
   while (tokens[0].token === "{") {
-    let last = consumer.Block(file, tokens, "inline_macro_argument", {
+    let level = 1;
+    let index = 0;
+    while (level != 0 && tokens[index]) {
+      index++;
+      if (tokens[index].token === "{") level++;
+      if (tokens[index].token === "}") level--;
+    }
+    let last = tokens[index].line;
+    let call = consumer.Block(file, tokens, "inline_macro_argument", {
       ref: true,
     });
-    args.push(last.ref);
-    while (tokens[0].token != "{" && tokens[0].line === last.last.line) {
+    args.push(call);
+    while (tokens[0].token != "{" && tokens[0].line === last) {
       args.push(tokens.shift().token);
     }
   }
