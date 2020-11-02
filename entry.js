@@ -1037,8 +1037,10 @@ function handlemacro(file, _token, name, args, tokens) {
     let last = tokens[index].line;
     let call = consumer.Block(file, tokens, "inline_macro_argument", {
       ref: true,
+      dummy: true,
     });
-    args.push(call);
+    call.confirm(file);
+    args.push(call.getReference());
     while (tokens[0].token != "{" && tokens[0].line === last) {
       args.push(tokens.shift().token);
     }
