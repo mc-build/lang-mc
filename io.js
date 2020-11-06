@@ -11,16 +11,16 @@ let _fakefs = new Set();
 
 function evaluate(line) {
   if (line.indexOf("<%") > -1 && line.indexOf("%>")) {
+    const template = line
+      .replace(/\${/g, '${"${"}')
+      .replace(/\\/g, "\\\\")
+      .replace(/<%/g, "${")
+      .replace(/%>/g, "}")
+      .replace(/\`/g, "\\`");
     try {
-      const template = line
-        .replace(/\${/g, '${"${"}')
-        .replace(/\\/g, "\\\\")
-        .replace(/<%/g, "${")
-        .replace(/%>/g, "}")
-        .replace(/\`/g, "\\`");
       return evaluateCodeWithEnv("return `" + template + "`", env);
     } catch (e) {
-      return e.message;
+      throw new CompilerError(`invalid template literal '${template}'`);
     }
   }
   return line;
@@ -74,11 +74,7 @@ class MCFunction extends File {
     return c.digest("hex");
   }
   addCommand(command) {
-    this.functions.push(
-      evaluate(
-        command
-      )
-    );
+    this.functions.push(evaluate(command));
   }
   setPath(p) {
     this._path = p;
@@ -87,17 +83,25 @@ class MCFunction extends File {
     return this.namespace + ":" + this._path;
   }
   getContents() {
-    return (CONFIG.header ? CONFIG.header + "\n\n" : "") + this.functions.map((command) => command.replace(/\$block/g, this.namespace + ":" + this.getFunctionPath())
-      .replace(/\$top/g, this.top.getReference())
-      .replace(/\$parent/g, () => {
-        if (this.parent) {
-          return this.parent.getReference();
-        } else {
-          throw new CompilerError(
-            "$parent used where there is no valid parent."
-          );
-        }
-      })).join("\n");
+    return (
+      (CONFIG.header ? CONFIG.header + "\n\n" : "") +
+      this.functions
+        .map((command) =>
+          command
+            .replace(/\$block/g, this.namespace + ":" + this.getFunctionPath())
+            .replace(/\$top/g, this.top.getReference())
+            .replace(/\$parent/g, () => {
+              if (this.parent) {
+                return this.parent.getReference();
+              } else {
+                throw new CompilerError(
+                  "$parent used where there is no valid parent."
+                );
+              }
+            })
+        )
+        .join("\n")
+    );
   }
   getPath() {
     return path.resolve(
@@ -124,7 +128,7 @@ class MCFunction extends File {
     }
   }
   toString() {
-    return "function " + this.namespace + ":" + this.getFunctionPath()
+    return "function " + this.namespace + ":" + this.getFunctionPath();
   }
 
   static setEnv(_env) {
@@ -133,4 +137,11 @@ class MCFunction extends File {
   }
 }
 
-module.exports = { MCFunction, tickFunction, loadFunction, loadFile, tickFile, evaluate_str: evaluate };
+module.exports = {
+  MCFunction,
+  tickFunction,
+  loadFunction,
+  loadFile,
+  tickFile,
+  evaluate_str: evaluate,
+};
