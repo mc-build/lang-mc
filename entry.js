@@ -766,7 +766,7 @@ consumer.Generic = list({
           func
         );
         whileFunc.addCommand(
-          `scoreboard players set #WHILE ${config.internalScoreboard} 0`
+          `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 0`
         );
         whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
 
