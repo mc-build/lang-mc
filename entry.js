@@ -691,7 +691,7 @@ consumer.Generic = list({
     {
       match: ({ token }) => /^async while/.test(token),
       exec(file, tokens, func, parent) {
-        const { token } = tokens.shift();
+        let { token } = tokens.shift();
         const args = token.substr(12, token.length - 13);
         const cond = args.substr(0, args.lastIndexOf(",")).trim();
         const time = args.substr(args.lastIndexOf(",") + 1).trim();
@@ -742,7 +742,7 @@ consumer.Generic = list({
     {
       match: ({ token }) => /^while/.test(token),
       exec(file, tokens, func, parent) {
-        const { token } = tokens.shift();
+        let { token } = tokens.shift();
         const args = token.substr(6, token.length - 7);
         const cond = args.trim();
         const whileFunc = new MCFunction();
