@@ -14,6 +14,7 @@ const {
 } = require("./io");
 const { evaluateCodeWithEnv, bindCodeToEnv } = require("./code-runner");
 const { EventEmitter } = require("events");
+const io = require("./io");
 const consumer = {};
 const SRC_DIR = path.resolve(process.cwd() + "/src");
 const MC_LANG_EVENTS = new EventEmitter();
@@ -1129,7 +1130,12 @@ function copy_token(_, args) {
   t.dependencies = _.dependencies;
   return t;
 }
-
+const TickTag = new io.MultiFileTag(
+  path.resolve(process.cwd(), "./data/minecraft/tags/functions/tick.json")
+);
+const LoadTag = new io.MultiFileTag(
+  path.resolve(process.cwd(), "./data/minecraft/tags/functions/tick.json")
+);
 function MC_LANG_HANDLER(file) {
   MC_LANG_EVENTS.emit("start", {
     file,
@@ -1178,37 +1184,11 @@ function MC_LANG_HANDLER(file) {
       }
       const loadContent = loadFunction.values();
       if (loadContent.length > 0) {
-        const loadTag = new File();
-        loadTag.setPath(
-          path.resolve(
-            process.cwd(),
-            "./data/minecraft/tags/functions/load.json"
-          )
-        );
-        loadTag.setContents(
-          JSON.stringify({
-            replace: false,
-            values: loadContent,
-          })
-        );
-        loadTag.confirm();
+        LoadTag.set(file, loadContent);
       }
       const tickValues = tickFunction.values();
       if (tickValues.length > 0) {
-        const tickTag = new File();
-        tickTag.setPath(
-          path.resolve(
-            process.cwd(),
-            "./data/minecraft/tags/functions/tick.json"
-          )
-        );
-        tickTag.setContents(
-          JSON.stringify({
-            replace: false,
-            values: tickValues,
-          })
-        );
-        tickTag.confirm();
+        TickTag.set(file, tickValues);
       }
       MC_LANG_EVENTS.emit("end", {
         file,
@@ -1282,6 +1262,8 @@ module.exports = function MC(registry) {
       io: {
         loadFunction,
         tickFunction,
+        TickTag,
+        LoadTag,
         MCFunction,
       },
       getEnv() {

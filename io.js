@@ -41,6 +41,43 @@ class MultiFile {
     delete this.segments[file];
   }
 }
+
+class MultiFileTag {
+  constructor(path) {
+    this.segments = {};
+    this.file = new File();
+    this.file.setPath(path);
+    this.current = false;
+  }
+  set(id, func) {
+    if (!this.current) {
+      this.file.confirm();
+      this.current = true;
+    }
+    this.segments[id] = this.segments[id] || [];
+    this.segments[id].push(func);
+    this.file.setContents(
+      JSON.stringify({
+        replace: false,
+        values: Object.values(this.segments).flat(Infinity),
+      })
+    );
+  }
+  reset(file) {
+    this.current = false;
+    delete this.segments[file];
+    if (!this.current) {
+      this.file.confirm();
+      this.current = true;
+    }
+    this.file.setContents(
+      JSON.stringify({
+        replace: false,
+        values: Object.values(this.segments).flat(),
+      })
+    );
+  }
+}
 const tickFile = new File();
 tickFile.setPath(
   path.resolve(
@@ -144,4 +181,5 @@ module.exports = {
   loadFile,
   tickFile,
   evaluate_str: evaluate,
+  MultiFileTag,
 };
