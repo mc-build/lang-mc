@@ -1165,6 +1165,8 @@ function MC_LANG_HANDLER(file) {
   );
   loadFunction.reset(file);
   tickFunction.reset(file);
+  LoadTag.reset(file);
+  TickTag.reset(file);
   MacroStorage = {};
   if (fs.existsSync(file)) {
     env = { config: CONFIG };
