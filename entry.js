@@ -1134,7 +1134,7 @@ const TickTag = new io.MultiFileTag(
   path.resolve(process.cwd(), "./data/minecraft/tags/functions/tick.json")
 );
 const LoadTag = new io.MultiFileTag(
-  path.resolve(process.cwd(), "./data/minecraft/tags/functions/tick.json")
+  path.resolve(process.cwd(), "./data/minecraft/tags/functions/load.json")
 );
 function MC_LANG_HANDLER(file) {
   MC_LANG_EVENTS.emit("start", {
