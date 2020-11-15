@@ -344,7 +344,6 @@ consumer.EntryOp = list({
         const _token = tokens.shift();
         const { token } = _token;
         const condition = token.substr(4, token.length - 5);
-        tokens.shift();
         validate_next_destructive(tokens, "{");
         if (evaluate(condition, _token)) {
           while (tokens[0].token != "}") {
@@ -362,7 +361,7 @@ consumer.EntryOp = list({
       },
     },
     {
-      match: ({ token }) => /^!.+\(/.test(token),
+      match: ({ token }) => /^!.+/.test(token),
       exec(file, tokens) {
         const { token } = tokens[0];
         const condition = token.substr(1);
@@ -387,12 +386,11 @@ consumer.EntryOp = list({
   def: (file, tokens) => {
     const token = tokens.shift();
     throw new CompilerError(
-      `unexpected token '${token.token}' before ${
-        tokens[0]
-          ? tokens[0].token.length > 10
-            ? tokens[0].token.substr(0, 10) + "..."
-            : tokens[0].token
-          : "EOF"
+      `unexpected token '${token.token}' before ${tokens[0]
+        ? tokens[0].token.length > 10
+          ? tokens[0].token.substr(0, 10) + "..."
+          : tokens[0].token
+        : "EOF"
       }`,
       token.line
     );
@@ -556,8 +554,7 @@ consumer.Generic = list({
           token = tokens.shift().token;
           condition = token.substring(token.indexOf("(") + 1, token.length - 1);
           func.addCommand(
-            `execute if score #execute ${
-              CONFIG.internalScoreboard
+            `execute if score #execute ${CONFIG.internalScoreboard
             } matches 0 ${condition} run ${consumer.Block(
               file,
               tokens,
@@ -575,8 +572,7 @@ consumer.Generic = list({
         if (/^else/.test(tokens[0].token)) {
           tokens.shift();
           func.addCommand(
-            `execute if score #execute ${
-              CONFIG.internalScoreboard
+            `execute if score #execute ${CONFIG.internalScoreboard
             } matches 0 run ${consumer.Block(
               file,
               tokens,
@@ -649,8 +645,8 @@ consumer.Generic = list({
         const { token } = tokens.shift();
         func.addCommand(
           token +
-            " " +
-            consumer.Block(file, tokens, "execute", {}, parent, null)
+          " " +
+          consumer.Block(file, tokens, "execute", {}, parent, null)
         );
       },
     },
