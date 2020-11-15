@@ -667,7 +667,18 @@ consumer.Generic = list({
         const args = token.substr(6, token.length - 7);
         const cond = args.substr(0, args.lastIndexOf(",")).trim();
         const time = args.substr(args.lastIndexOf(",") + 1).trim();
-        const call = consumer.Block(file, tokens, "until", {}, parent, null);
+        const call = consumer.Block(
+          file,
+          tokens,
+          "until",
+          {
+            prepend: [
+              `scoreboard players set #until_${_id} ${CONFIG.internalScoreboard} 1`,
+            ],
+          },
+          parent,
+          null
+        );
         const untilFunc = new MCFunction();
         const name =
           "__generated__/until/" +
@@ -678,9 +689,7 @@ consumer.Generic = list({
         untilFunc.addCommand(
           `scoreboard players set #until_${_id} ${CONFIG.internalScoreboard} 0`
         );
-        untilFunc.addCommand(
-          `execute store success score #until_${_id} ${CONFIG.internalScoreboard} ${cond} run ${call}`
-        );
+        untilFunc.addCommand(`execute ${cond} run ${call}`);
         untilFunc.addCommand(
           `execute if score #until_${_id} ${CONFIG.internalScoreboard} matches 0 run schedule function $block ${time}`
         );
