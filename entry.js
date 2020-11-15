@@ -667,6 +667,7 @@ consumer.Generic = list({
         const args = token.substr(6, token.length - 7);
         const cond = args.substr(0, args.lastIndexOf(",")).trim();
         const time = args.substr(args.lastIndexOf(",") + 1).trim();
+        const _id = id.until;
         const call = consumer.Block(
           file,
           tokens,
@@ -683,7 +684,6 @@ consumer.Generic = list({
         const name =
           "__generated__/until/" +
           (id.until = (id.until == undefined ? -1 : id.until) + 1);
-        const _id = id.until;
         untilFunc.namespace = namespaceStack[0];
         untilFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
         untilFunc.addCommand(
