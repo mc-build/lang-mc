@@ -37,6 +37,9 @@ class MultiFile {
   values() {
     return Object.values(this.segments).flat();
   }
+  valuesFor(key) {
+    return Object.values(this.segments[key] || {}).flat();
+  }
   reset(file) {
     delete this.segments[file];
   }

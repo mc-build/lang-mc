@@ -1192,11 +1192,11 @@ function MC_LANG_HANDLER(file) {
       if (TickFunction.functions.length > 0) {
         TickFunction.confirm(file);
       }
-      const loadContent = loadFunction.values();
+      const loadContent = loadFunction.valuesFor(file);
       if (loadContent.length > 0) {
         LoadTag.set(file, loadContent);
       }
-      const tickValues = tickFunction.values();
+      const tickValues = tickFunction.valuesFor(file);
       if (tickValues.length > 0) {
         TickTag.set(file, tickValues);
       }
