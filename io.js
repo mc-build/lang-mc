@@ -7,19 +7,20 @@ const { evaluateCodeWithEnv } = require("./code-runner");
 const crypto = require("crypto");
 
 let env;
+let _fakefs = new Set();
 
 function evaluate(line) {
   if (line.indexOf("<%") > -1 && line.indexOf("%>")) {
+    const template = line
+      .replace(/\${/g, '${"${"}')
+      .replace(/\\/g, "\\\\")
+      .replace(/<%/g, "${")
+      .replace(/%>/g, "}")
+      .replace(/\`/g, "\\`");
     try {
-      const template = line
-        .replace(/\${/g, '${"${"}')
-        .replace(/\\/g, "\\\\")
-        .replace(/<%/g, "${")
-        .replace(/%>/g, "}")
-        .replace(/\`/g, "\\`");
       return evaluateCodeWithEnv("return `" + template + "`", env);
     } catch (e) {
-      return e.message;
+      throw new CompilerError(`invalid template literal '${template}'`);
     }
   }
   return line;
@@ -36,8 +37,49 @@ class MultiFile {
   values() {
     return Object.values(this.segments).flat();
   }
+  valuesFor(key) {
+    return Object.values(this.segments[key] || {}).flat(Infinity);
+  }
   reset(file) {
     delete this.segments[file];
+  }
+}
+
+class MultiFileTag {
+  constructor(path) {
+    this.segments = {};
+    this.file = new File();
+    this.file.setPath(path);
+    this.current = false;
+  }
+  set(id, func) {
+    if (!this.current) {
+      this.file.confirm();
+      this.current = true;
+    }
+    this.segments[id] = this.segments[id] || [];
+    this.segments[id].push(func);
+    debugger;
+    this.file.setContents(
+      JSON.stringify({
+        replace: false,
+        values: Object.values(this.segments).flat(Infinity),
+      })
+    );
+  }
+  reset(file) {
+    this.current = false;
+    delete this.segments[file];
+    if (!this.current) {
+      this.file.confirm();
+      this.current = true;
+    }
+    this.file.setContents(
+      JSON.stringify({
+        replace: false,
+        values: Object.values(this.segments).flat(),
+      })
+    );
   }
 }
 const tickFile = new File();
@@ -73,11 +115,7 @@ class MCFunction extends File {
     return c.digest("hex");
   }
   addCommand(command) {
-    this.functions.push(
-      evaluate(
-        command
-      )
-    );
+    this.functions.push(evaluate(command));
   }
   setPath(p) {
     this._path = p;
@@ -86,17 +124,25 @@ class MCFunction extends File {
     return this.namespace + ":" + this._path;
   }
   getContents() {
-    return (CONFIG.header ? CONFIG.header + "\n\n" : "") + this.functions.map((command) => command.replace(/\$block/g, this.namespace + ":" + this.getFunctionPath())
-      .replace(/\$top/g, this.top.getReference())
-      .replace(/\$parent/g, () => {
-        if (this.parent) {
-          return this.parent.getReference();
-        } else {
-          throw new CompilerError(
-            "$parent used where there is no valid parent."
-          );
-        }
-      })).join("\n");
+    return (
+      (CONFIG.header ? CONFIG.header + "\n\n" : "") +
+      this.functions
+        .map((command) =>
+          command
+            .replace(/\$block/g, this.namespace + ":" + this.getFunctionPath())
+            .replace(/\$top/g, this.top.getReference())
+            .replace(/\$parent/g, () => {
+              if (this.parent) {
+                return this.parent.getReference();
+              } else {
+                throw new CompilerError(
+                  "$parent used where there is no valid parent."
+                );
+              }
+            })
+        )
+        .join("\n")
+    );
   }
   getPath() {
     return path.resolve(
@@ -112,20 +158,32 @@ class MCFunction extends File {
   }
 
   confirm(file) {
-    if (this.intent === "load") {
-      loadFunction.set(file, this.getReference());
-    } else if (this.intent === "tick") {
-      tickFunction.set(file, this.getReference());
+    if (!_fakefs.has(this._path)) {
+      _fakefs.add(this._path);
+      if (this.intent === "load") {
+        loadFunction.set(file, this.getReference());
+      } else if (this.intent === "tick") {
+        tickFunction.set(file, this.getReference());
+      }
+      super.confirm();
     }
-    super.confirm();
   }
   toString() {
-    return "function " + this.namespace + ":" + this.getFunctionPath()
+    return "function " + this.namespace + ":" + this.getFunctionPath();
   }
 
   static setEnv(_env) {
+    _fakefs = new Set();
     env = _env;
   }
 }
 
-module.exports = { MCFunction, tickFunction, loadFunction, loadFile, tickFile, evaluate_str: evaluate };
+module.exports = {
+  MCFunction,
+  tickFunction,
+  loadFunction,
+  loadFile,
+  tickFile,
+  evaluate_str: evaluate,
+  MultiFileTag,
+};
