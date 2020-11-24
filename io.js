@@ -38,7 +38,7 @@ class MultiFile {
     return Object.values(this.segments).flat();
   }
   valuesFor(key) {
-    return Object.values(this.segments[key] || {}).flat();
+    return Object.values(this.segments[key] || {}).flat(Infinity);
   }
   reset(file) {
     delete this.segments[file];
@@ -59,6 +59,7 @@ class MultiFileTag {
     }
     this.segments[id] = this.segments[id] || [];
     this.segments[id].push(func);
+    debugger;
     this.file.setContents(
       JSON.stringify({
         replace: false,
