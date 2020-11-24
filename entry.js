@@ -633,24 +633,67 @@ consumer.Generic = list({
       },
     },
     {
-      match: ({ token }) => /^block/.test(token),
+      match: ({ token }) => /^block|^{/.test(token),
       exec(file, tokens, func, parent) {
-        tokens.shift();
+        if (tokens[0].token === "block") tokens.shift();
         func.addCommand(
           consumer.Block(file, tokens, "block", {}, parent, null)
         );
       },
     },
     {
-      match: ({ token }) =>
-        token.endsWith(" run") && token.startsWith("execute"),
-      exec(file, tokens, func, parent) {
-        const { token } = tokens.shift();
-        func.addCommand(
-          token +
-            " " +
-            consumer.Block(file, tokens, "execute", {}, parent, null)
+      match: ({ token }) => token.startsWith("execute"),
+      exec(file, tokens, func, parent, functionalparent) {
+        const _token = tokens.shift();
+        const { token } = _token;
+        const command = token.substr(token.lastIndexOf("run") + 3).trim();
+        const execute = token.substr(0, token.lastIndexOf("run") + 3).trim();
+        if (command) {
+          const lastInLine = tokens.filter((t) => t.line === _token.line).pop();
+          const temp = [];
+          let count = 1;
+          if (lastInLine && lastInLine.token === "{") {
+            temp.push(tokens.shift());
+            while (tokens.length && count) {
+              if (tokens[0].token === "{") count++;
+              if (tokens[0].token === "}") count--;
+              temp.push(tokens.shift());
+            }
+          }
+          let copy = copy_token(_token, _token.args);
+          tokens.unshift(...temp, copy);
+          copy.token = "}";
+          copy = copy_token(_token, _token.args);
+          tokens.unshift(copy);
+          copy.token = command;
+          copy = copy_token(_token, _token.args);
+          tokens.unshift(copy);
+          copy.token = "{";
+        }
+        const innerFunc = consumer.Block(
+          file,
+          tokens,
+          "execute",
+          {
+            dummy: true,
+          },
+          parent,
+          functionalparent
         );
+        if (
+          innerFunc.functions.length > 1 &&
+          innerFunc.functions[0].indexOf("$block") == -1
+        ) {
+          innerFunc.confirm(file);
+          func.addCommand(execute + " function " + innerFunc.getReference());
+        } else {
+          func.addCommand(execute + " " + innerFunc.functions[0]);
+        }
+        // func.addCommand(
+        //   token +
+        //     " " +
+        //     consumer.Block(file, tokens, "execute", {}, parent, null)
+        // );
       },
     },
     {

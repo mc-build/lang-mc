@@ -59,7 +59,6 @@ class MultiFileTag {
     }
     this.segments[id] = this.segments[id] || [];
     this.segments[id].push(func);
-    debugger;
     this.file.setContents(
       JSON.stringify({
         replace: false,
