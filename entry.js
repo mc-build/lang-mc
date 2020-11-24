@@ -411,7 +411,7 @@ consumer.Function = (file, tokens, opts = {}) => {
   const definition = tokens.shift();
   let [, name] = definition.token.split(" ");
   name = evaluate_str(name);
-  if (/[^a-z0-9_-\.]/.test(name)) {
+  if (/[^a-z0-9_\.\-]/.test(name)) {
     throw new CompilerError(
       "invalid function name '" + name + "'",
       definition.line
