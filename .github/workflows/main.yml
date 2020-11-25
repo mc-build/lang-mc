@@ -22,4 +22,4 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" -H "Accept: application/vnd.github.everest-preview+json" -H "Content-Type:application/json" https://api.github.com/repos/mc-build/mc-build.github.io/actions/workflows/node.js.yaml/dispatches --data '{"ref":"master"}'
+      - run: curl -XPOST -u "${{ secrets.PAT_USERNAME}}:${{secrets.PAT_TOKEN}}" -H "Accept:application/vnd.github.everest-preview+json" -H "Content-Type:application/json" https://api.github.com/repos/mc-build/mc-build.github.io/actions/workflows/node.js.yaml/dispatches --data '{"ref":"master"}'
