@@ -642,7 +642,7 @@ consumer.Generic = list({
       },
     },
     {
-      match: ({ token }) => token.startsWith("execute"),
+      match: ({ token }) => token.startsWith("execute") && token.indexOf("run") != -1,
       exec(file, tokens, func, parent, functionalparent) {
         const _token = tokens.shift();
         const { token } = _token;
