@@ -642,7 +642,8 @@ consumer.Generic = list({
       },
     },
     {
-      match: ({ token }) => token.startsWith("execute") && token.indexOf("run") != -1,
+      match: ({ token }) =>
+        token.startsWith("execute") && token.indexOf("run") != -1,
       exec(file, tokens, func, parent, functionalparent) {
         const _token = tokens.shift();
         const { token } = _token;
@@ -653,11 +654,14 @@ consumer.Generic = list({
           const temp = [];
           let count = 1;
           if (lastInLine && lastInLine.token === "{") {
-            temp.push(tokens.shift());
-            while (tokens.length && count) {
+            let tok = tokens.shift();
+            let last_line = tok.line;
+            temp.push(tok);
+            while ((tokens.length && count) || tok.line == tokens[0].line) {
               if (tokens[0].token === "{") count++;
               if (tokens[0].token === "}") count--;
-              temp.push(tokens.shift());
+              tok = tokens.shift();
+              temp.push(tok);
             }
           }
           let copy = copy_token(_token, _token.args);
@@ -689,11 +693,6 @@ consumer.Generic = list({
         } else {
           func.addCommand(execute + " " + innerFunc.functions[0]);
         }
-        // func.addCommand(
-        //   token +
-        //     " " +
-        //     consumer.Block(file, tokens, "execute", {}, parent, null)
-        // );
       },
     },
     {
