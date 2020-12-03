@@ -650,7 +650,14 @@ consumer.Generic = list({
         const command = token.substr(token.lastIndexOf("run") + 3).trim();
         const execute = token.substr(0, token.lastIndexOf("run") + 3).trim();
         if (command) {
-          const lastInLine = tokens.filter((t) => t.line === _token.line).pop();
+          let lastInLine = _token;
+          for (let i = 0; i < tokens.length; i++) {
+            if (tokens[i].line === lastInLine.line) {
+              lastInLine = tokens[i];
+            } else {
+              break;
+            }
+          }
           const temp = [];
           let count = 1;
           if (lastInLine && lastInLine.token === "{") {
