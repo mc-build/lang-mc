@@ -643,12 +643,12 @@ consumer.Generic = list({
     },
     {
       match: ({ token }) =>
-        token.startsWith("execute") && token.indexOf(" run ") != -1,
+        token.startsWith("execute") && token.indexOf("run") != -1,
       exec(file, tokens, func, parent, functionalparent) {
         const _token = tokens.shift();
         const { token } = _token;
-        const command = token.substr(token.lastIndexOf(" run ") + 5).trim();
-        const execute = token.substr(0, token.lastIndexOf(" run ") + 5).trim();
+        const command = token.substr(token.lastIndexOf("run") + 3).trim();
+        const execute = token.substr(0, token.lastIndexOf("run") + 3).trim();
         if (command) {
           let lastInLine = _token;
           for (let i = 0; i < tokens.length; i++) {
