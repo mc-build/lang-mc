@@ -386,12 +386,11 @@ consumer.EntryOp = list({
   def: (file, tokens) => {
     const token = tokens.shift();
     throw new CompilerError(
-      `unexpected token '${token.token}' before ${
-        tokens[0]
-          ? tokens[0].token.length > 10
-            ? tokens[0].token.substr(0, 10) + "..."
-            : tokens[0].token
-          : "EOF"
+      `unexpected token '${token.token}' before ${tokens[0]
+        ? tokens[0].token.length > 10
+          ? tokens[0].token.substr(0, 10) + "..."
+          : tokens[0].token
+        : "EOF"
       }`,
       token.line
     );
@@ -555,8 +554,7 @@ consumer.Generic = list({
           token = tokens.shift().token;
           condition = token.substring(token.indexOf("(") + 1, token.length - 1);
           func.addCommand(
-            `execute if score #execute ${
-              CONFIG.internalScoreboard
+            `execute if score #execute ${CONFIG.internalScoreboard
             } matches 0 ${condition} run ${consumer.Block(
               file,
               tokens,
@@ -574,8 +572,7 @@ consumer.Generic = list({
         if (/^else/.test(tokens[0].token)) {
           tokens.shift();
           func.addCommand(
-            `execute if score #execute ${
-              CONFIG.internalScoreboard
+            `execute if score #execute ${CONFIG.internalScoreboard
             } matches 0 run ${consumer.Block(
               file,
               tokens,
@@ -646,8 +643,8 @@ consumer.Generic = list({
       exec(file, tokens, func, parent, functionalparent) {
         const _token = tokens.shift();
         const { token } = _token;
-        const command = token.substr(token.lastIndexOf("run") + 3).trim();
-        const execute = token.substr(0, token.lastIndexOf("run") + 3).trim();
+        const command = token.substr(token.lastIndexOf(" run") + 4).trim();
+        const execute = token.substr(0, token.lastIndexOf(" run") + 4).trim();
         if (command) {
           const lastInLine = tokens.filter((t) => t.line === _token.line).pop();
           const temp = [];
