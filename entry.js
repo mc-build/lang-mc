@@ -643,8 +643,8 @@ consumer.Generic = list({
       exec(file, tokens, func, parent, functionalparent) {
         const _token = tokens.shift();
         const { token } = _token;
-        const command = token.substr(token.lastIndexOf(" run") + 4).trim();
-        const execute = token.substr(0, token.lastIndexOf(" run") + 4).trim();
+        const command = token.substr(token.lastIndexOf(" run") + 4).trim().replace(/\\run/g, "run");
+        const execute = token.substr(0, token.lastIndexOf(" run") + 4).trim().replace(/\\run/g, "run");
         if (command) {
           const lastInLine = tokens.filter((t) => t.line === _token.line).pop();
           const temp = [];
@@ -659,14 +659,15 @@ consumer.Generic = list({
           }
           let copy = copy_token(_token, _token.args);
           tokens.unshift(...temp, copy);
-          copy.token = "{";
+          copy.token = "}";
           copy = copy_token(_token, _token.args);
           tokens.unshift(copy);
           copy.token = command;
           copy = copy_token(_token, _token.args);
           tokens.unshift(copy);
-          copy.token = "}";
+          copy.token = "{";
         }
+        console.log(tokens);
         const innerFunc = consumer.Block(
           file,
           tokens,
