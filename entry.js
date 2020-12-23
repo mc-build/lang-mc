@@ -667,7 +667,6 @@ consumer.Generic = list({
           tokens.unshift(copy);
           copy.token = "{";
         }
-        console.log(tokens);
         const innerFunc = consumer.Block(
           file,
           tokens,
