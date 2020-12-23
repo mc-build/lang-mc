@@ -659,13 +659,13 @@ consumer.Generic = list({
           }
           let copy = copy_token(_token, _token.args);
           tokens.unshift(...temp, copy);
-          copy.token = "}";
+          copy.token = "{";
           copy = copy_token(_token, _token.args);
           tokens.unshift(copy);
           copy.token = command;
           copy = copy_token(_token, _token.args);
           tokens.unshift(copy);
-          copy.token = "{";
+          copy.token = "}";
         }
         const innerFunc = consumer.Block(
           file,
