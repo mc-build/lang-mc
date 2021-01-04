@@ -1110,7 +1110,7 @@ function handlemacro(file, _token, name, args, tokens) {
     let block = "";
     while (segments.length > 0) {
       let segment = segments.shift();
-      if (segment.startsWith("<")) {
+      if (segment.startsWith("<") && segment[1] != "%") {
         if (segment.indexOf(":") != -1) {
           block = {
             content: segment.substr(segment.indexOf(":") + 1),
@@ -1123,7 +1123,7 @@ function handlemacro(file, _token, name, args, tokens) {
           };
         }
         inblock = true;
-      } else if (segment.endsWith(">")) {
+      } else if (segment.endsWith(">") && !segment.endsWith("%>")) {
         inblock = false;
         block.content += segment.substr(0, segment.length - 1);
         block.content = block.content.trim();
