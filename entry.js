@@ -114,11 +114,13 @@ const evaluate = (line, token) => {
   try {
     return evaluateCodeWithEnv(`return ${line}`, {
       ...env,
+      args: token.args,
+      storage: MacroStorage[token.file || "mc"],
       type: (index) => token.args[index].type,
     });
     // return new Function("type", "return " + line).bind(env)((index, type) => token.args[index].type === type);
   } catch (e) {
-    return true;
+    throw new CompilerError(e.message, token.line);
   }
 };
 
