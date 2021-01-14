@@ -365,11 +365,12 @@ consumer.EntryOp = list({
     {
       match: ({ token }) => /^!.+/.test(token),
       exec(file, tokens) {
-        const { token } = tokens[0];
+        const _token = tokens[0];
+        const { token } = _token;
         const condition = token.substr(1);
         tokens.shift();
         validate_next_destructive(tokens, "{");
-        if (evaluate(condition)) {
+        if (evaluate(condition, _token)) {
           while (tokens[0].token != "}") {
             consumer.Entry(file, tokens, true);
           }
@@ -1131,7 +1132,7 @@ function handlemacro(file, _token, name, args, tokens) {
       } else if (inblock) {
         block.content += segment + " ";
       } else {
-        args.push({ content: segment, type: "unkown" });
+        args.push({ content: evaluate_str(segment), type: "unkown" });
       }
     }
     args = args.filter((arg) => Boolean(arg.content));
