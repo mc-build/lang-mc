@@ -218,7 +218,16 @@ const tokenize = (str) => {
   return str.split("\n").reduce((p, n, index) => {
     n = n.trim();
     if (n.startsWith("###")) inML = !inML;
-    if (inML || n[0] === "#" || !n) return p;
+    if (config.fools) {
+      if (n[0] == "#") {
+        throw new CompilerError(
+          `Please do not use '#' to make comments. Use 'This is a comment:'`
+        );
+      }
+      if (inML || n.startsWith("This is a comment:") || !n) return p;
+    } else {
+      if (inML || n[0] === "#" || !n) return p;
+    }
     if (n[0] === "}") {
       p.push(new Token(index, "}"));
       n = n.slice(1);
