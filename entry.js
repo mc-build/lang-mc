@@ -1084,6 +1084,7 @@ consumer.Loop = (
   delete env[name];
 };
 
+
 function handlemacro(file, _token, name, args, tokens) {
   while (tokens[0].token === "{") {
     let level = 1;
@@ -1135,7 +1136,12 @@ function handlemacro(file, _token, name, args, tokens) {
         args.push({ content: evaluate_str(segment), type: "unkown" });
       }
     }
-    args = args.filter((arg) => Boolean(arg.content));
+    args = args
+      .filter((arg) => Boolean(arg.content))
+      .map((arg) => {
+        arg.content = evaluate_str(arg.content);
+        return arg;
+      });
     if (Macros[name]) {
       const _tokens = [
         ...Macros[name].map((_) => {
@@ -1162,6 +1168,7 @@ function handlemacro(file, _token, name, args, tokens) {
     let _Macros = MacroCache[_token.file].importedMacros;
     if (!_Macros[name]) _Macros = MacroCache[_token.file].macros;
     if (_Macros[name]) {
+      args = args.map(evaluate_str);
       const _tokens = [
         ..._Macros[name].map((_) => {
           let t = new Token(_.line, _.token);
