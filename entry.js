@@ -45,7 +45,32 @@ let Macros = {};
 let LoadFunction = null;
 let TickFunction = null;
 let MacroStorage = {};
-
+let scoreIds = new Map();
+function flat(arr, r) {
+  let res = r || [];
+  for (let i = 0; i < arr.length; i++) {
+    if (Array.isArray(arr[i])) {
+      flat(arr[i], res);
+    } else {
+      res.push(arr[i]);
+    }
+  }
+  return res;
+}
+function getUniqueScoreId(file) {
+  const ids = new Set(flat(Array.from(scoreIds.values())));
+  for (let i = 0; i < ids.length + 1; i++) {
+    if (!ids.includes(i)) {
+      const arr = scoreIds.get(file) || [];
+      arr.push(i);
+      scoreIds.set(file, arr);
+      return i;
+    }
+  }
+}
+function resetScoreIdsForFile(file) {
+  scoreIds.delete(file);
+}
 function getMacro(filepath, dependent) {
   if (!filepath.endsWith(".mcm")) {
     filepath += ".mcm";
@@ -719,7 +744,7 @@ consumer.Generic = list({
         const args = token.substr(6, token.length - 7);
         const cond = args.substr(0, args.lastIndexOf(",")).trim();
         const time = args.substr(args.lastIndexOf(",") + 1).trim();
-        const _id = id.until;
+        const _id = getUniqueScoreId(file);
         const call = consumer.Block(
           file,
           tokens,
@@ -757,6 +782,7 @@ consumer.Generic = list({
         const cond = args.substr(0, args.lastIndexOf(",")).trim();
         const time = args.substr(args.lastIndexOf(",") + 1).trim();
         const whileFunc = new MCFunction();
+        const _id = getUniqueScoreId(file);
         const name =
           "__generated__/while/" +
           (id.while = (id.while == undefined ? -1 : id.while) + 1);
@@ -769,7 +795,7 @@ consumer.Generic = list({
           "while",
           {
             append: [
-              `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 1`,
+              `scoreboard players set #WHILE_${_id} ${CONFIG.internalScoreboard} 1`,
               `schedule function ${whileFunc.getReference()} ${time}`,
             ],
           },
@@ -777,7 +803,7 @@ consumer.Generic = list({
           func
         );
         whileFunc.addCommand(
-          `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 0`
+          `scoreboard players set #WHILE_${_id} ${CONFIG.internalScoreboard} 0`
         );
         whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
 
@@ -792,7 +818,7 @@ consumer.Generic = list({
             func
           );
           whileFunc.addCommand(
-            `execute if score #WHILE ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
+            `execute if score #WHILE_${_id} ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
           );
         }
 
@@ -819,7 +845,7 @@ consumer.Generic = list({
           "while",
           {
             append: [
-              `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 1`,
+              `scoreboard players set #WHILE_${_id} ${CONFIG.internalScoreboard} 1`,
               `function ${whileFunc.getReference()}`,
             ],
           },
@@ -827,7 +853,7 @@ consumer.Generic = list({
           func
         );
         whileFunc.addCommand(
-          `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 0`
+          `scoreboard players set #WHILE_${_id} ${CONFIG.internalScoreboard} 0`
         );
         whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
 
@@ -842,7 +868,7 @@ consumer.Generic = list({
             func
           );
           whileFunc.addCommand(
-            `execute if score #WHILE ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
+            `execute if score #WHILE_${_id} ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
           );
         }
 
@@ -1084,7 +1110,6 @@ consumer.Loop = (
   delete env[name];
 };
 
-
 function handlemacro(file, _token, name, args, tokens) {
   while (tokens[0].token === "{") {
     let level = 1;
@@ -1207,6 +1232,7 @@ function MC_LANG_HANDLER(file) {
   MC_LANG_EVENTS.emit("start", {
     file,
   });
+  resetScoreIdsForFile(file);
   hashes = new Map();
   Macros = {};
   included_file_list = [];
@@ -1278,6 +1304,7 @@ function MC_LANG_HANDLER(file) {
 }
 
 function MCM_LANG_HANDLER(file) {
+  resetScoreIdsForFile(file);
   const toUpdate = (MacroCache[file] && MacroCache[file].dependents) || [];
   MacroCache[file] = null;
   if (fs.existsSync(file)) {
