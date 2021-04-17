@@ -58,7 +58,7 @@ function flat(arr, r) {
   return res;
 }
 function getUniqueScoreId(file) {
-  const ids = new Set(flat(Array.from(scoreIds.values())));
+  const ids = flat(Array.from(scoreIds.values()));
   for (let i = 0; i < ids.length + 1; i++) {
     if (!ids.includes(i)) {
       const arr = scoreIds.get(file) || [];
