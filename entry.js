@@ -760,7 +760,7 @@ consumer.Generic = list({
         );
         const untilFunc = new MCFunction();
         const name =
-          "__generated__/until/" +
+          CONFIG.blockDirectory + "/until/" +
           (id.until = (id.until == undefined ? -1 : id.until) + 1);
         untilFunc.namespace = namespaceStack[0];
         untilFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
@@ -785,7 +785,7 @@ consumer.Generic = list({
         const whileFunc = new MCFunction();
         const _id = getUniqueScoreId(file);
         const name =
-          "__generated__/while/" +
+          CONFIG.blockDirectory + "/while/" +
           (id.while = (id.while == undefined ? -1 : id.while) + 1);
 
         whileFunc.namespace = namespaceStack[0];
@@ -835,7 +835,7 @@ consumer.Generic = list({
         const cond = args.trim();
         const whileFunc = new MCFunction();
         const name =
-          "__generated__/while/" +
+          CONFIG.blockDirectory + "/while/" +
           (id.while = (id.while == undefined ? -1 : id.while) + 1);
 
         const _id = getUniqueScoreId(file);
@@ -943,7 +943,7 @@ consumer.Generic = list({
           } else {
             const subfunc = new MCFunction();
             const name =
-              "__generated__/sequence/" +
+              CONFIG.blockDirectory + "/sequence/" +
               (id.sequence = (id.sequence == undefined ? -1 : id.sequence) + 1);
             subfunc.namespace = namespaceStack[0];
             subfunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
@@ -1023,7 +1023,7 @@ consumer.Block = (
     name = evaluate_str(special_thing.substr(5)).trim();
   } else {
     name =
-      "__generated__/" +
+      CONFIG.blockDirectory + "/" +
       reason +
       "/" +
       (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1);
@@ -1251,12 +1251,12 @@ function MC_LANG_HANDLER(file) {
   LoadFunction = new MCFunction(null, null, "load");
   LoadFunction.namespace = namespaceStack[0];
   LoadFunction.setPath(
-    namespaceStack.slice(1).concat("__generated__/load").join("/")
+    namespaceStack.slice(1).concat(CONFIG.blockDirectory + "/load").join("/")
   );
   TickFunction = new MCFunction(null, null, "tick");
   TickFunction.namespace = namespaceStack[0];
   TickFunction.setPath(
-    namespaceStack.slice(1).concat("__generated__/tick").join("/")
+    namespaceStack.slice(1).concat(CONFIG.blockDirectory + "/tick").join("/")
   );
   loadFunction.reset(file);
   tickFunction.reset(file);
