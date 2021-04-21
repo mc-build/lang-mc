@@ -838,6 +838,7 @@ consumer.Generic = list({
           "__generated__/while/" +
           (id.while = (id.while == undefined ? -1 : id.while) + 1);
 
+        const _id = getUniqueScoreId(file);
         whileFunc.namespace = namespaceStack[0];
         whileFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
         const whileAction = consumer.Block(
