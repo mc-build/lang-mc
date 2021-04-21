@@ -244,6 +244,7 @@ const tokenize = (str) => {
     n = n.trim();
     if (n.startsWith("###")) inML = !inML;
     if (inML || n[0] === "#" || !n) return p;
+    if (n[0] === "\\" && n[1] == "#") n = n.slice(1);
     if (n[0] === "}") {
       p.push(new Token(index, "}"));
       n = n.slice(1);
