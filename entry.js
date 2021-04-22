@@ -15,6 +15,7 @@ const {
 const { evaluateCodeWithEnv, bindCodeToEnv } = require("./code-runner");
 const { EventEmitter } = require("events");
 const io = require("./io");
+const config = require("./config");
 const consumer = {};
 const SRC_DIR = path.resolve(process.cwd() + "/src");
 const MC_LANG_EVENTS = new EventEmitter();
@@ -25,6 +26,17 @@ const PROJECT_JSON = require(path.resolve(
   ".mcproject",
   "PROJECT.json"
 ));
+
+// Validate path for CONFIG.generatedDirectory
+if (typeof CONFIG.generatedDirectory == "string" && config.generatedDirectory.length > 0) {
+  if (CONFIG.generatedDirectory.match(/^[\da-z_\-\./]+$/) != null) {
+    CONFIG.generatedDirectory = CONFIG.generatedDirectory.replace(/^\/+|\/+$/g, "").replace(/^\.\.\/?|\.\.\/|\.\.$/g, "");
+  } else {
+    throw new UserError(`Config.generatedDirectory: Invalid directory path ${CONFIG.generatedDirectory}\nDefaulting to "__generated__".`);
+  }
+} else {
+  CONFIG.generateDirectory = "__generated__"
+}
 
 let hashes = new Map();
 
