@@ -85,7 +85,7 @@ const tickFile = new File();
 tickFile.setPath(
   path.resolve(
     process.cwd(),
-    "./data/minecraft/functions/__generated__/events/tick.mcfunction"
+    "./data/minecraft/functions/" + CONFIG.generatedDirectory + "/events/tick.mcfunction"
   )
 );
 const tickFunction = new MultiFile(tickFile);
@@ -93,7 +93,7 @@ const loadFile = new File();
 loadFile.setPath(
   path.resolve(
     process.cwd(),
-    "./data/minecraft/functions/__generated__/events/load.mcfunction"
+    "./data/minecraft/functions/" + CONFIG.generatedDirectory + "/events/load.mcfunction"
   )
 );
 const loadFunction = new MultiFile(loadFile);
