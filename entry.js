@@ -779,7 +779,7 @@ consumer.Generic = list({
           `scoreboard players set #until_${_id} ${CONFIG.internalScoreboard} 0`
         );
         untilFunc.addCommand(`execute ${cond} run scoreboard players set #until_${_id} ${CONFIG.internalScoreboard} 1`);
-        untilFunc.addCommand(`execute if score #until_${_id} ${CONFIG.internalScoreboard} matches 1 run function ${call.getReference()}`);
+        untilFunc.addCommand(`execute if score #until_${_id} ${CONFIG.internalScoreboard} matches 1 run function ${call}`);
         untilFunc.addCommand(
           `execute if score #until_${_id} ${CONFIG.internalScoreboard} matches 0 run schedule function $block ${time}`
         );
