@@ -25,6 +25,17 @@ const PROJECT_JSON = require(path.resolve(
   "PROJECT.json"
 ));
 
+// Validate path for CONFIG.generatedDirectory
+if (typeof CONFIG.generatedDirectory == "string" && CONFIG.generatedDirectory.length > 0) {
+  if (CONFIG.generatedDirectory.match(/^[\da-z_\-\./]+$/) != null) {
+    CONFIG.generatedDirectory = CONFIG.generatedDirectory.replace(/^\/+|\/+$/g, "").replace(/^\.\.\/?|\.\.\/|\.\.$/g, "");
+  } else {
+    throw new UserError(`Config.generatedDirectory: Invalid directory path ${CONFIG.generatedDirectory}\nDefaulting to "__generated__".`);
+  }
+} else {
+  CONFIG.generateDirectory = "__generated__"
+}
+
 let hashes = new Map();
 
 function getNameFromHash(hash, prefix) {
@@ -44,7 +55,32 @@ let Macros = {};
 let LoadFunction = null;
 let TickFunction = null;
 let MacroStorage = {};
-
+let scoreIds = new Map();
+function flat(arr, r) {
+  let res = r || [];
+  for (let i = 0; i < arr.length; i++) {
+    if (Array.isArray(arr[i])) {
+      flat(arr[i], res);
+    } else {
+      res.push(arr[i]);
+    }
+  }
+  return res;
+}
+function getUniqueScoreId(file) {
+  const ids = flat(Array.from(scoreIds.values()));
+  for (let i = 0; i < ids.length + 1; i++) {
+    if (!ids.includes(i)) {
+      const arr = scoreIds.get(file) || [];
+      arr.push(i);
+      scoreIds.set(file, arr);
+      return i;
+    }
+  }
+}
+function resetScoreIdsForFile(file) {
+  scoreIds.delete(file);
+}
 function getMacro(filepath, dependent) {
   if (!filepath.endsWith(".mcm")) {
     filepath += ".mcm";
@@ -218,6 +254,7 @@ const tokenize = (str) => {
     n = n.trim();
     if (n.startsWith("###")) inML = !inML;
     if (inML || n[0] === "#" || !n) return p;
+    if (n[0] === "\\" && n[1] == "#") n = n.slice(1);
     if (n[0] === "}") {
       p.push(new Token(index, "}"));
       n = n.slice(1);
@@ -722,7 +759,7 @@ consumer.Generic = list({
         const args = token.substr(6, token.length - 7);
         const cond = args.substr(0, args.lastIndexOf(",")).trim();
         const time = args.substr(args.lastIndexOf(",") + 1).trim();
-        const _id = id.until;
+        const _id = getUniqueScoreId(file);
         const call = consumer.Block(
           file,
           tokens,
@@ -737,7 +774,7 @@ consumer.Generic = list({
         );
         const untilFunc = new MCFunction();
         const name =
-          "__generated__/until/" +
+          CONFIG.generatedDirectory + "/until/" +
           (id.until = (id.until == undefined ? -1 : id.until) + 1);
         untilFunc.namespace = namespaceStack[0];
         untilFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
@@ -760,8 +797,9 @@ consumer.Generic = list({
         const cond = args.substr(0, args.lastIndexOf(",")).trim();
         const time = args.substr(args.lastIndexOf(",") + 1).trim();
         const whileFunc = new MCFunction();
+        const _id = getUniqueScoreId(file);
         const name =
-          "__generated__/while/" +
+          CONFIG.generatedDirectory + "/while/" +
           (id.while = (id.while == undefined ? -1 : id.while) + 1);
 
         whileFunc.namespace = namespaceStack[0];
@@ -772,7 +810,7 @@ consumer.Generic = list({
           "while",
           {
             append: [
-              `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 1`,
+              `scoreboard players set #WHILE_${_id} ${CONFIG.internalScoreboard} 1`,
               `schedule function ${whileFunc.getReference()} ${time}`,
             ],
           },
@@ -780,7 +818,7 @@ consumer.Generic = list({
           func
         );
         whileFunc.addCommand(
-          `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 0`
+          `scoreboard players set #WHILE_${_id} ${CONFIG.internalScoreboard} 0`
         );
         whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
 
@@ -795,7 +833,7 @@ consumer.Generic = list({
             func
           );
           whileFunc.addCommand(
-            `execute if score #WHILE ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
+            `execute if score #WHILE_${_id} ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
           );
         }
 
@@ -811,9 +849,10 @@ consumer.Generic = list({
         const cond = args.trim();
         const whileFunc = new MCFunction();
         const name =
-          "__generated__/while/" +
+          CONFIG.generatedDirectory + "/while/" +
           (id.while = (id.while == undefined ? -1 : id.while) + 1);
 
+        const _id = getUniqueScoreId(file);
         whileFunc.namespace = namespaceStack[0];
         whileFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
         const whileAction = consumer.Block(
@@ -822,7 +861,7 @@ consumer.Generic = list({
           "while",
           {
             append: [
-              `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 1`,
+              `scoreboard players set #WHILE_${_id} ${CONFIG.internalScoreboard} 1`,
               `function ${whileFunc.getReference()}`,
             ],
           },
@@ -830,7 +869,7 @@ consumer.Generic = list({
           func
         );
         whileFunc.addCommand(
-          `scoreboard players set #WHILE ${CONFIG.internalScoreboard} 0`
+          `scoreboard players set #WHILE_${_id} ${CONFIG.internalScoreboard} 0`
         );
         whileFunc.addCommand(`execute ${cond} run ${whileAction}`);
 
@@ -845,7 +884,7 @@ consumer.Generic = list({
             func
           );
           whileFunc.addCommand(
-            `execute if score #WHILE ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
+            `execute if score #WHILE_${_id} ${CONFIG.internalScoreboard} matches 0 run ${whileFinally}`
           );
         }
 
@@ -918,7 +957,7 @@ consumer.Generic = list({
           } else {
             const subfunc = new MCFunction();
             const name =
-              "__generated__/sequence/" +
+              CONFIG.generatedDirectory + "/sequence/" +
               (id.sequence = (id.sequence == undefined ? -1 : id.sequence) + 1);
             subfunc.namespace = namespaceStack[0];
             subfunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
@@ -998,7 +1037,7 @@ consumer.Block = (
     name = evaluate_str(special_thing.substr(5)).trim();
   } else {
     name =
-      "__generated__/" +
+      CONFIG.generatedDirectory + "/" +
       reason +
       "/" +
       (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1);
@@ -1138,7 +1177,12 @@ function handlemacro(file, _token, name, args, tokens) {
         args.push({ content: evaluate_str(segment), type: "unkown" });
       }
     }
-    args = args.filter((arg) => Boolean(arg.content));
+    args = args
+      .filter((arg) => Boolean(arg.content))
+      .map((arg) => {
+        arg.content = evaluate_str(arg.content);
+        return arg;
+      });
     if (Macros[name]) {
       const _tokens = [
         ...Macros[name].map((_) => {
@@ -1165,6 +1209,7 @@ function handlemacro(file, _token, name, args, tokens) {
     let _Macros = MacroCache[_token.file].importedMacros;
     if (!_Macros[name]) _Macros = MacroCache[_token.file].macros;
     if (_Macros[name]) {
+      args = args.map(evaluate_str);
       const _tokens = [
         ..._Macros[name].map((_) => {
           let t = new Token(_.line, _.token);
@@ -1203,6 +1248,7 @@ function MC_LANG_HANDLER(file) {
   MC_LANG_EVENTS.emit("start", {
     file,
   });
+  resetScoreIdsForFile(file);
   hashes = new Map();
   Macros = {};
   included_file_list = [];
@@ -1219,12 +1265,12 @@ function MC_LANG_HANDLER(file) {
   LoadFunction = new MCFunction(null, null, "load");
   LoadFunction.namespace = namespaceStack[0];
   LoadFunction.setPath(
-    namespaceStack.slice(1).concat("__generated__/load").join("/")
+    namespaceStack.slice(1).concat(CONFIG.generatedDirectory + "/load").join("/")
   );
   TickFunction = new MCFunction(null, null, "tick");
   TickFunction.namespace = namespaceStack[0];
   TickFunction.setPath(
-    namespaceStack.slice(1).concat("__generated__/tick").join("/")
+    namespaceStack.slice(1).concat(CONFIG.generatedDirectory + "/tick").join("/")
   );
   loadFunction.reset(file);
   tickFunction.reset(file);
@@ -1274,6 +1320,7 @@ function MC_LANG_HANDLER(file) {
 }
 
 function MCM_LANG_HANDLER(file) {
+  resetScoreIdsForFile(file);
   const toUpdate = (MacroCache[file] && MacroCache[file].dependents) || [];
   MacroCache[file] = null;
   if (fs.existsSync(file)) {
