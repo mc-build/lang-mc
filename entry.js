@@ -688,7 +688,11 @@ consumer.Generic = list({
         const { token } = _token;
         const command = token.substr(token.lastIndexOf("run") + 3).trim();
         const execute = token.substr(0, token.lastIndexOf("run") + 3).trim();
+        let useAltParent = true;
+        let isCommand = true;
         if (command) {
+          if(command === "{") isCommand = false;
+          useAltParent = false;
           let lastInLine = _token;
           for (let i = 0; i < tokens.length; i++) {
             if (tokens[i].line === lastInLine.line) {
@@ -727,8 +731,8 @@ consumer.Generic = list({
           {
             dummy: true,
           },
-          parent,
-          functionalparent
+          useAltParent?parent:func,
+          useAltParent?functionalparent:func
         );
         if (
           innerFunc.functions.length > 1
@@ -736,7 +740,7 @@ consumer.Generic = list({
           innerFunc.confirm(file);
           func.addCommand(execute + " function " + innerFunc.getReference());
         } else {
-          if(innerFunc.functions[0].indexOf("$block") != -1){
+          if(innerFunc.functions[0].indexOf("$block") != -1 && !isCommand){
             innerFunc.confirm(file);
             func.addCommand(execute + " function " + innerFunc.getReference());
           }else{
