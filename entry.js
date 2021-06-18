@@ -727,8 +727,8 @@ consumer.Generic = list({
           {
             dummy: true,
           },
-          func,
-          func
+          parent,
+          functionalparent
         );
         if (
           innerFunc.functions.length > 1
