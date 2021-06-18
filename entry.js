@@ -736,7 +736,7 @@ consumer.Generic = list({
           innerFunc.confirm(file);
           func.addCommand(execute + " function " + innerFunc.getReference());
         } else {
-          if(innerFunc.functions[0].indexOf("$block") == -1){
+          if(innerFunc.functions[0].indexOf("$block") == -1 || innerFunc.functions.length > 1){
             innerFunc.confirm(file);
             func.addCommand(execute + " function " + innerFunc.getReference());
           }else{
