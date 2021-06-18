@@ -9,7 +9,6 @@ const {
   MCFunction,
   loadFunction,
   tickFunction,
-  loadFile,
   evaluate_str,
 } = require("./io");
 const { evaluateCodeWithEnv, bindCodeToEnv } = require("./code-runner");
@@ -695,13 +694,17 @@ consumer.Generic = list({
           functionalparent
         );
         if (
-          innerFunc.functions.length > 1 &&
-          innerFunc.functions[0].indexOf("$block") == -1
+          innerFunc.functions.length > 1
         ) {
           innerFunc.confirm(file);
           func.addCommand(execute + " function " + innerFunc.getReference());
         } else {
-          func.addCommand(execute + " " + innerFunc.functions[0]);
+          if(innerFunc.functions[0].indexOf("$block") == -1){
+            innerFunc.confirm(file);
+            func.addCommand(execute + " function " + innerFunc.getReference());
+          }else{
+            func.addCommand(execute + " " + innerFunc.functions[0]);
+          }
         }
       },
     },
