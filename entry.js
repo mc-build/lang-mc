@@ -525,6 +525,10 @@ consumer.Generic = list({
             MacroStorage[_token.file || "mc"] || new Map();
           evaluateCodeWithEnv(code, {
             ...env,
+            meta:{
+              file,
+              func,
+            },
             emit: (command, isLoad = false) => {
               if (isLoad) {
                 LoadFunction.addCommand(String(command));
@@ -1282,7 +1286,7 @@ function MC_LANG_HANDLER(file) {
   TickTag.reset(file);
   MacroStorage = {};
   if (fs.existsSync(file)) {
-    env = { config: CONFIG };
+    env = { config: CONFIG,file_path:file };
     MCFunction.setEnv(env);
     ifId = 0;
     id = {};
