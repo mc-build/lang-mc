@@ -744,7 +744,15 @@ consumer.Generic = list({
           innerFunc.confirm(file);
           func.addCommand(execute + " function " + innerFunc.getReference());
         } else {
-          if(innerFunc.functions[0].indexOf("$block") != -1 && !isCommand){
+          
+          if (innerFunc.functions.length == 0){
+            const { line } = tokens.shift();
+            throw new CompilerError(
+              `Empty run block`, 
+              line - 1
+            );
+          }
+          if(innerFunc.functions[0]?.indexOf("$block") != -1 && !isCommand){
             innerFunc.confirm(file);
             func.addCommand(execute + " function " + innerFunc.getReference());
           }else{
