@@ -536,6 +536,9 @@ consumer.Generic = list({
                 func.addCommand(String(command));
               }
             },
+            load(fp,mode){
+              return fs.readFileSync(path.resolve(path.parse(file).dir,fp),mode||"utf8")
+            },
             args: _token.args,
             storage: MacroStorage[_token.file || "mc"],
             type: (index) => _token.args[index].type,
