@@ -454,7 +454,7 @@ consumer.Entry = (file, tokens, once) => {
 
 consumer.Function = (file, tokens, opts = {}) => {
   const definition = tokens.shift();
-  let [, name] = definition.token.split(" ");
+  let name = definition.token.substr(9);
   name = evaluate_str(name);
   if (/[^a-z0-9_\.]/.test(name)) {
     throw new CompilerError(
