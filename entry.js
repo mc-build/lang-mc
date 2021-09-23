@@ -305,6 +305,12 @@ function list({ getToken, actions, def }) {
 }
 consumer.Namespace = (file, token, tokens) => {
   const name = evaluate_str(token.substr("dir ".length));
+    if (/[^a-z0-9_\.]/.test(name)) {
+    throw new CompilerError(
+      "invalid directory name '" + name + "'",
+      token.line
+    );
+  }
   namespaceStack.push(name.trim());
   validate_next_destructive(tokens, "{");
   while (tokens[0].token != "}") {
