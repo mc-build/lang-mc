@@ -20,6 +20,7 @@ function evaluate(line) {
     try {
       return evaluateCodeWithEnv("return `" + template + "`", env);
     } catch (e) {
+      console.log(e);
       throw new CompilerError(`invalid template literal '${template}'`);
     }
   }
