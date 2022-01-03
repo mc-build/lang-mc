@@ -753,7 +753,6 @@ consumer.Generic = list({
           innerFunc.confirm(file);
           func.addCommand(execute + " function " + innerFunc.getReference());
         } else {
-          
           if (innerFunc.functions.length == 0){
             const { line } = tokens.shift();
             throw new CompilerError(
@@ -775,6 +774,13 @@ consumer.Generic = list({
       exec(file, tokens, func) {
         const { token } = tokens.shift();
         consumer.Loop(file, token, tokens, func, consumer.Generic, null, null);
+      },
+    },
+    {
+      match: ({ token }) => /^BST/.test(token),
+      exec(file, tokens, func) {
+        const { token } = tokens[0];
+        consumer.Bst(file, token, tokens, func, consumer.Generic, null, null);
       },
     },
     {
@@ -1101,6 +1107,72 @@ consumer.Block = (
   } else {
     return func;
   }
+};
+
+consumer.Bst = (
+  file,
+  token,
+  tokens,
+  func,
+  type = consumer.Generic,
+  parent,
+  functionalparent
+) => {
+  let [score, rangeMin, rangeMax, name] = token
+    . substring(token.indexOf("(") + 1, token.length - 1)
+    .split(",")
+    .map((_) => _.trim());
+  if (score == undefined || rangeMin == undefined || rangeMax == undefined || name == undefined) throw new CompilerError("Invalid BST syntax. One or more parameters missing", tokens[0].line + 1);
+  name = name.split(')')[0];
+  rangeMin = evaluate(rangeMin, "min");
+  rangeMax = evaluate(rangeMax, "max");
+  if (rangeMin > rangeMax) throw new CompilerError("Invalid BST range. Minimum higher than maximum", tokens[0].line + 1);
+  const execute = tokens.shift().token.split(') ')[1];
+  if (execute == undefined) throw new CompilerError("Invalid BST syntax. Did you forget a ')'?", tokens[0].line + 1);
+  if (tokens[0] && tokens[0].token != '{') {
+    throw new CompilerError(
+      `unexpected token '${tokens[0].token}' expected '{'`,
+      tokens[0].line
+    );
+  }
+  let mutatedTokens = [];
+  function makeTree(rangeMin, rangeMax, func) {
+    let rangeMid = Math.floor((rangeMax - rangeMin + 1) / 2);
+    if (rangeMid < 2) {
+      const range = Math.ceil((rangeMax - rangeMin + 1) / 2) + 1;
+      for (let i = 0; i < range; i++) {
+        let copy = [...tokens];
+        env[name] = i + rangeMin;
+        let endFunc = consumer.Block(file, copy, 'bst', {dummy: true}, parent, functionalparent);
+        endFunc.confirm();
+        func.addCommand(`execute if score ${score} matches ${i + rangeMin} ${execute} ${endFunc.toString()}`);
+        mutatedTokens = [...copy]
+      }
+    } else {
+      let childFunc1 = new MCFunction(null, null);
+      let childFunc2 = new MCFunction(null, null);
+      childFunc1.namespace = namespaceStack[0];
+      const name1 =
+          CONFIG.generatedDirectory + "/bst/" +
+          (id.bst = (id.bst == undefined ? -1 : id.bst) + 1);
+      childFunc1.setPath(namespaceStack.slice(1).concat(name1).join("/"));
+      childFunc2.namespace = namespaceStack[0];
+      const name2 =
+          CONFIG.generatedDirectory + "/bst/" +
+          (id.bst = (id.bst == undefined ? -1 : id.bst) + 1);
+      childFunc2.setPath(namespaceStack.slice(1).concat(name2).join("/"));
+      childFunc1.confirm();
+      childFunc2.confirm();
+      func.addCommand(`execute if score ${score} matches ${rangeMin}..${rangeMid - 1 + rangeMin} run ${childFunc1.toString()}`);
+      func.addCommand(`execute if score ${score} matches ${rangeMid}..${rangeMax} run ${childFunc2.toString()}`);
+      makeTree(rangeMin, rangeMid - 1 + rangeMin, childFunc1);
+      makeTree(rangeMid + rangeMin, rangeMax, childFunc2);
+    }
+  }
+  makeTree(rangeMin, rangeMax, func);
+  tokens.splice(0,Infinity);
+  tokens.push(...mutatedTokens);
+  delete env[name];
 };
 
 consumer.Loop = (
