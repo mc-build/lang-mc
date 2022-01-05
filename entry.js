@@ -1164,7 +1164,7 @@ consumer.Bst = (
       childFunc1.confirm();
       childFunc2.confirm();
       func.addCommand(`execute if score ${score} matches ${rangeMin}..${rangeMid - 1 + rangeMin} run ${childFunc1.toString()}`);
-      func.addCommand(`execute if score ${score} matches ${rangeMid}..${rangeMax} run ${childFunc2.toString()}`);
+      func.addCommand(`execute if score ${score} matches ${rangeMid + rangeMin}..${rangeMax} run ${childFunc2.toString()}`);
       makeTree(rangeMin, rangeMid - 1 + rangeMin, childFunc1);
       makeTree(rangeMid + rangeMin, rangeMax, childFunc2);
     }
