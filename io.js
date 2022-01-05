@@ -141,7 +141,7 @@ class MCFunction extends File {
               }
             })
         )
-        .join("\n")
+        .join(CONFIG.lineEnding)
     );
   }
   getPath() {
