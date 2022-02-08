@@ -26,14 +26,21 @@ const PROJECT_JSON = require(path.resolve(
 ));
 
 // Validate path for CONFIG.generatedDirectory
-if (typeof CONFIG.generatedDirectory == "string" && CONFIG.generatedDirectory.length > 0) {
+if (
+  typeof CONFIG.generatedDirectory == "string" &&
+  CONFIG.generatedDirectory.length > 0
+) {
   if (CONFIG.generatedDirectory.match(/^[\da-z_\-\./]+$/) != null) {
-    CONFIG.generatedDirectory = CONFIG.generatedDirectory.replace(/^\/+|\/+$/g, "").replace(/^\.\.\/?|\.\.\/|\.\.$/g, "");
+    CONFIG.generatedDirectory = CONFIG.generatedDirectory
+      .replace(/^\/+|\/+$/g, "")
+      .replace(/^\.\.\/?|\.\.\/|\.\.$/g, "");
   } else {
-    throw new UserError(`Config.generatedDirectory: Invalid directory path ${CONFIG.generatedDirectory}\nDefaulting to "__generated__".`);
+    throw new UserError(
+      `Config.generatedDirectory: Invalid directory path ${CONFIG.generatedDirectory}\nDefaulting to "__generated__".`
+    );
   }
 } else {
-  CONFIG.generateDirectory = "__generated__"
+  CONFIG.generateDirectory = "__generated__";
 }
 
 let hashes = new Map();
@@ -305,7 +312,7 @@ function list({ getToken, actions, def }) {
 }
 consumer.Namespace = (file, token, tokens) => {
   const name = evaluate_str(token.substr("dir ".length));
-    if (/[^a-z0-9_\.]/.test(name)) {
+  if (/[^a-z0-9_\.]/.test(name)) {
     throw new CompilerError(
       "invalid directory name '" + name + "'",
       token.line
@@ -427,6 +434,46 @@ consumer.EntryOp = list({
         }
       },
     },
+    {
+      match: ({ token }) => token.startsWith("<%%"),
+      exec(file, tokens, func) {
+        const _token = tokens.shift();
+        const { token } = _token;
+        let code = "";
+        let next = null;
+        if (token.endsWith("%%>")) {
+          code = token.substring(3, token.length - 3);
+        } else {
+          do {
+            next = tokens.shift().token;
+            if (next != "%%>") code += "\n" + next;
+          } while (next && next != "%%>");
+        }
+        try {
+          MacroStorage[_token.file || "mc"] =
+            MacroStorage[_token.file || "mc"] || new Map();
+          evaluateCodeWithEnv(code, {
+            ...env,
+            meta: {
+              file,
+            },
+            emit: (command, target = "load") => {
+              if (target === "load") LoadFunction.addCommand(String(command));
+              if (target === "tick") TickFunction.addCommand(String(command));
+            },
+            load(fp, mode) {
+              return fs.readFileSync(
+                path.resolve(path.parse(file).dir, fp),
+                mode || "utf8"
+              );
+            },
+            storage: MacroStorage[_token.file || "mc"],
+          });
+        } catch (e) {
+          throw new CompilerError("JS: " + e.message, token.line);
+        }
+      },
+    },
   ],
   def: (file, tokens) => {
     const token = tokens.shift();
@@ -516,34 +563,40 @@ consumer.Generic = list({
       },
     },
     {
-      match: ({ token }) => token === "<%%",
+      match: ({ token }) => token.startsWith("<%%"),
       exec(file, tokens, func) {
         const _token = tokens.shift();
         const { token } = _token;
         let code = "";
         let next = null;
-        do {
-          next = tokens.shift().token;
-          if (next != "%%>") code += "\n" + next;
-        } while (next && next != "%%>");
+        if (token.endsWith("%%>")) {
+          code = token.substring(3, token.length - 3);
+        } else {
+          do {
+            next = tokens.shift().token;
+            if (next != "%%>") code += "\n" + next;
+          } while (next && next != "%%>");
+        }
         try {
           MacroStorage[_token.file || "mc"] =
             MacroStorage[_token.file || "mc"] || new Map();
           evaluateCodeWithEnv(code, {
             ...env,
-            meta:{
+            meta: {
               file,
               func,
             },
-            emit: (command, isLoad = false) => {
-              if (isLoad) {
+            emit: (command, target = "this") => {
+              if (target === "load" || target === true)
                 LoadFunction.addCommand(String(command));
-              } else {
-                func.addCommand(String(command));
-              }
+              if (target === "tick") TickFunction.addCommand(String(command));
+              if (target === "this") func.addAction(String(command));
             },
-            load(fp,mode){
-              return fs.readFileSync(path.resolve(path.parse(file).dir,fp),mode||"utf8")
+            load(fp, mode) {
+              return fs.readFileSync(
+                path.resolve(path.parse(file).dir, fp),
+                mode || "utf8"
+              );
             },
             args: _token.args,
             storage: MacroStorage[_token.file || "mc"],
@@ -704,7 +757,7 @@ consumer.Generic = list({
         let useAltParent = true;
         let isCommand = true;
         if (command) {
-          if(command === "{") isCommand = false;
+          if (command === "{") isCommand = false;
           useAltParent = false;
           let lastInLine = _token;
           for (let i = 0; i < tokens.length; i++) {
@@ -744,26 +797,21 @@ consumer.Generic = list({
           {
             dummy: true,
           },
-          useAltParent?parent:func,
-          useAltParent?functionalparent:func
+          useAltParent ? parent : func,
+          useAltParent ? functionalparent : func
         );
-        if (
-          innerFunc.functions.length > 1
-        ) {
+        if (innerFunc.functions.length > 1) {
           innerFunc.confirm(file);
           func.addCommand(execute + " function " + innerFunc.getReference());
         } else {
-          if (innerFunc.functions.length == 0){
+          if (innerFunc.functions.length == 0) {
             const { line } = tokens.shift();
-            throw new CompilerError(
-              `Empty run block`, 
-              line - 1
-            );
+            throw new CompilerError(`Empty run block`, line - 1);
           }
-          if(innerFunc.functions[0]?.indexOf("$block") != -1 && !isCommand){
+          if (innerFunc.functions[0]?.indexOf("$block") != -1 && !isCommand) {
             innerFunc.confirm(file);
             func.addCommand(execute + " function " + innerFunc.getReference());
-          }else{
+          } else {
             func.addCommand(execute + " " + innerFunc.functions[0]);
           }
         }
@@ -774,13 +822,6 @@ consumer.Generic = list({
       exec(file, tokens, func) {
         const { token } = tokens.shift();
         consumer.Loop(file, token, tokens, func, consumer.Generic, null, null);
-      },
-    },
-    {
-      match: ({ token }) => /^BST/.test(token),
-      exec(file, tokens, func) {
-        const { token } = tokens[0];
-        consumer.Bst(file, token, tokens, func, consumer.Generic, null, null);
       },
     },
     {
@@ -805,7 +846,8 @@ consumer.Generic = list({
         );
         const untilFunc = new MCFunction();
         const name =
-          CONFIG.generatedDirectory + "/until/" +
+          CONFIG.generatedDirectory +
+          "/until/" +
           (id.until = (id.until == undefined ? -1 : id.until) + 1);
         untilFunc.namespace = namespaceStack[0];
         untilFunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
@@ -830,7 +872,8 @@ consumer.Generic = list({
         const whileFunc = new MCFunction();
         const _id = getUniqueScoreId(file);
         const name =
-          CONFIG.generatedDirectory + "/while/" +
+          CONFIG.generatedDirectory +
+          "/while/" +
           (id.while = (id.while == undefined ? -1 : id.while) + 1);
 
         whileFunc.namespace = namespaceStack[0];
@@ -880,7 +923,8 @@ consumer.Generic = list({
         const cond = args.trim();
         const whileFunc = new MCFunction();
         const name =
-          CONFIG.generatedDirectory + "/while/" +
+          CONFIG.generatedDirectory +
+          "/while/" +
           (id.while = (id.while == undefined ? -1 : id.while) + 1);
 
         const _id = getUniqueScoreId(file);
@@ -988,7 +1032,8 @@ consumer.Generic = list({
           } else {
             const subfunc = new MCFunction();
             const name =
-              CONFIG.generatedDirectory + "/sequence/" +
+              CONFIG.generatedDirectory +
+              "/sequence/" +
               (id.sequence = (id.sequence == undefined ? -1 : id.sequence) + 1);
             subfunc.namespace = namespaceStack[0];
             subfunc.setPath(namespaceStack.slice(1).concat(name).join("/"));
@@ -1068,7 +1113,8 @@ consumer.Block = (
     name = evaluate_str(special_thing.substr(5)).trim();
   } else {
     name =
-      CONFIG.generatedDirectory + "/" +
+      CONFIG.generatedDirectory +
+      "/" +
       reason +
       "/" +
       (id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1);
@@ -1107,72 +1153,6 @@ consumer.Block = (
   } else {
     return func;
   }
-};
-
-consumer.Bst = (
-  file,
-  token,
-  tokens,
-  func,
-  type = consumer.Generic,
-  parent,
-  functionalparent
-) => {
-  let [score, rangeMin, rangeMax, name] = token
-    . substring(token.indexOf("(") + 1, token.length - 1)
-    .split(",")
-    .map((_) => _.trim());
-  if (score == undefined || rangeMin == undefined || rangeMax == undefined || name == undefined) throw new CompilerError("Invalid BST syntax. One or more parameters missing", tokens[0].line + 1);
-  name = name.split(')')[0];
-  rangeMin = evaluate(rangeMin, "min");
-  rangeMax = evaluate(rangeMax, "max");
-  if (rangeMin > rangeMax) throw new CompilerError("Invalid BST range. Minimum higher than maximum", tokens[0].line + 1);
-  const execute = tokens.shift().token.split(') ')[1];
-  if (execute == undefined) throw new CompilerError("Invalid BST syntax. Did you forget a ')'?", tokens[0].line + 1);
-  if (tokens[0] && tokens[0].token != '{') {
-    throw new CompilerError(
-      `unexpected token '${tokens[0].token}' expected '{'`,
-      tokens[0].line
-    );
-  }
-  let mutatedTokens = [];
-  function makeTree(rangeMin, rangeMax, func) {
-    let rangeMid = Math.floor((rangeMax - rangeMin + 1) / 2);
-    if (rangeMid < 2) {
-      const range = Math.ceil((rangeMax - rangeMin + 1) / 2) + 1;
-      for (let i = 0; i < range; i++) {
-        let copy = [...tokens];
-        env[name] = i + rangeMin;
-        let endFunc = consumer.Block(file, copy, 'bst', {dummy: true}, parent, functionalparent);
-        endFunc.confirm();
-        func.addCommand(`execute if score ${score} matches ${i + rangeMin} ${execute} ${endFunc.toString()}`);
-        mutatedTokens = [...copy]
-      }
-    } else {
-      let childFunc1 = new MCFunction(null, null);
-      let childFunc2 = new MCFunction(null, null);
-      childFunc1.namespace = namespaceStack[0];
-      const name1 =
-          CONFIG.generatedDirectory + "/bst/" +
-          (id.bst = (id.bst == undefined ? -1 : id.bst) + 1);
-      childFunc1.setPath(namespaceStack.slice(1).concat(name1).join("/"));
-      childFunc2.namespace = namespaceStack[0];
-      const name2 =
-          CONFIG.generatedDirectory + "/bst/" +
-          (id.bst = (id.bst == undefined ? -1 : id.bst) + 1);
-      childFunc2.setPath(namespaceStack.slice(1).concat(name2).join("/"));
-      childFunc1.confirm();
-      childFunc2.confirm();
-      func.addCommand(`execute if score ${score} matches ${rangeMin}..${rangeMid - 1 + rangeMin} run ${childFunc1.toString()}`);
-      func.addCommand(`execute if score ${score} matches ${rangeMid}..${rangeMax} run ${childFunc2.toString()}`);
-      makeTree(rangeMin, rangeMid - 1 + rangeMin, childFunc1);
-      makeTree(rangeMid + rangeMin, rangeMax, childFunc2);
-    }
-  }
-  makeTree(rangeMin, rangeMax, func);
-  tokens.splice(0,Infinity);
-  tokens.push(...mutatedTokens);
-  delete env[name];
 };
 
 consumer.Loop = (
@@ -1362,12 +1342,18 @@ function MC_LANG_HANDLER(file) {
   LoadFunction = new MCFunction(null, null, "load");
   LoadFunction.namespace = namespaceStack[0];
   LoadFunction.setPath(
-    namespaceStack.slice(1).concat(CONFIG.generatedDirectory + "/load").join("/")
+    namespaceStack
+      .slice(1)
+      .concat(CONFIG.generatedDirectory + "/load")
+      .join("/")
   );
   TickFunction = new MCFunction(null, null, "tick");
   TickFunction.namespace = namespaceStack[0];
   TickFunction.setPath(
-    namespaceStack.slice(1).concat(CONFIG.generatedDirectory + "/tick").join("/")
+    namespaceStack
+      .slice(1)
+      .concat(CONFIG.generatedDirectory + "/tick")
+      .join("/")
   );
   loadFunction.reset(file);
   tickFunction.reset(file);
@@ -1375,7 +1361,7 @@ function MC_LANG_HANDLER(file) {
   TickTag.reset(file);
   MacroStorage = {};
   if (fs.existsSync(file)) {
-    env = { config: CONFIG,file_path:file };
+    env = { config: CONFIG, file_path: file };
     MCFunction.setEnv(env);
     ifId = 0;
     id = {};
