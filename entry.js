@@ -590,7 +590,7 @@ consumer.Generic = list({
               if (target === "load" || target === true)
                 LoadFunction.addCommand(String(command));
               if (target === "tick") TickFunction.addCommand(String(command));
-              if (target === "this") func.addAction(String(command));
+              if (target === "this") func.addCommand(String(command));
             },
             load(fp, mode) {
               return fs.readFileSync(
