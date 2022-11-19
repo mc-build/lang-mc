@@ -129,7 +129,7 @@ function getMacro(filepath, dependent) {
           const target = token.token.substr(7).trim();
           MacroCache[filepath].importedMacros = Object.assign(
             MacroCache[filepath].importedMacros,
-            getMacro(path.resolve(path.parse(filepath).dir, target), filepath)
+            getMacro(target.startsWith("@/") ? path.resolve(SRC_DIR, target.slice(2)) : path.resolve(path.parse(filepath).dir, target), filepath)
           );
         } else {
           throw new CompilerError(
@@ -338,7 +338,7 @@ consumer.EntryOp = list({
         if (token.endsWith(".mcm")) {
           Macros = Object.assign(
             Macros,
-            getMacro(path.resolve(path.parse(file).dir, target), file)
+            getMacro(target.startsWith("@/") ? path.resolve(SRC_DIR, target.slice(2)) : path.resolve(path.parse(file).dir, target), file)
           );
         } else {
           const [lib] = target.split("/");
