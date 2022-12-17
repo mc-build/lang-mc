@@ -129,7 +129,12 @@ function getMacro(filepath, dependent) {
           const target = token.token.substr(7).trim();
           MacroCache[filepath].importedMacros = Object.assign(
             MacroCache[filepath].importedMacros,
-            getMacro(target.startsWith("@/") ? path.resolve(SRC_DIR, target.slice(2)) : path.resolve(path.parse(filepath).dir, target), filepath)
+            getMacro(
+              target.startsWith("@/")
+                ? path.resolve(SRC_DIR, target.slice(2))
+                : path.resolve(path.parse(filepath).dir, target),
+              filepath
+            )
           );
         } else {
           throw new CompilerError(
@@ -338,7 +343,12 @@ consumer.EntryOp = list({
         if (token.endsWith(".mcm")) {
           Macros = Object.assign(
             Macros,
-            getMacro(target.startsWith("@/") ? path.resolve(SRC_DIR, target.slice(2)) : path.resolve(path.parse(file).dir, target), file)
+            getMacro(
+              target.startsWith("@/")
+                ? path.resolve(SRC_DIR, target.slice(2))
+                : path.resolve(path.parse(file).dir, target),
+              file
+            )
           );
         } else {
           const [lib] = target.split("/");
@@ -509,7 +519,7 @@ consumer.Function = (file, tokens, opts = {}) => {
       definition.line
     );
   }
-  const func = new MCFunction(undefined, undefined, name);
+  const func = new MCFunction(null, null, name);
   func.namespace = namespaceStack[0];
   func.setPath(namespaceStack.slice(1).concat(name).join("/"));
   validate_next_destructive(tokens, "{");
@@ -844,7 +854,7 @@ consumer.Generic = list({
           parent,
           null
         );
-        const untilFunc = new MCFunction();
+        const untilFunc = new MCFunction(func, func, "until");
         const name =
           CONFIG.generatedDirectory +
           "/until/" +
@@ -869,7 +879,7 @@ consumer.Generic = list({
         const args = token.substr(12, token.length - 13);
         const cond = args.substr(0, args.lastIndexOf(",")).trim();
         const time = args.substr(args.lastIndexOf(",") + 1).trim();
-        const whileFunc = new MCFunction();
+        const whileFunc = new MCFunction(parent, func, "while");
         const _id = getUniqueScoreId(file);
         const name =
           CONFIG.generatedDirectory +
@@ -921,7 +931,7 @@ consumer.Generic = list({
         let { token } = tokens.shift();
         const args = token.substr(6, token.length - 7);
         const cond = args.trim();
-        const whileFunc = new MCFunction();
+        const whileFunc = new MCFunction(parent, func);
         const name =
           CONFIG.generatedDirectory +
           "/while/" +
@@ -988,7 +998,7 @@ consumer.Generic = list({
     },
     {
       match: ({ token }) => token === "sequence",
-      exec(file, tokens, func) {
+      exec(file, tokens, func, parent) {
         tokens.shift();
         const contents = consumer.Block(
           file,
@@ -1030,7 +1040,7 @@ consumer.Generic = list({
           if (time == 0) {
             for (const command of commands[time]) func.addCommand(command);
           } else {
-            const subfunc = new MCFunction();
+            const subfunc = new MCFunction(func, parent);
             const name =
               CONFIG.generatedDirectory +
               "/sequence/" +
