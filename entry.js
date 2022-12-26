@@ -1338,6 +1338,17 @@ function MC_LANG_HANDLER(file) {
   resetScoreIdsForFile(file);
   hashes = new Map();
   Macros = {};
+  if(CONFIG.hasOwnProperty("globalImports")) {
+    CONFIG.globalImports.forEach((x)=>{
+      Macros = Object.assign(
+        Macros,
+        getMacro(
+            path.resolve(SRC_DIR, x),
+          file
+        )
+      );
+    });
+  }
   included_file_list = [];
   const location = path.relative(SRC_DIR, file);
   namespaceStack = [
