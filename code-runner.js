@@ -1,15 +1,15 @@
 function bindCodeToEnv(code, env) {
-    let args = [];
-    let params = [];
-    for (let name in env) {
-        params.push(name);
-        args.push(env[name]);
-    }
-    params.push(`return function(){\n${code}\n}`);
-    return new Function(...params)(...args);
+	let args = []
+	let params = []
+	for (let name in env) {
+		params.push(name)
+		args.push(env[name])
+	}
+	params.push(`return function(){\n${code}\n}`)
+	return new Function(...params)(...args)
 }
 function evaluateCodeWithEnv(code, env) {
-    return bindCodeToEnv(code, env)();
+	return bindCodeToEnv(code, env)()
 }
-exports.evaluateCodeWithEnv = evaluateCodeWithEnv;
-exports.bindCodeToEnv = bindCodeToEnv;
+exports.evaluateCodeWithEnv = evaluateCodeWithEnv
+exports.bindCodeToEnv = bindCodeToEnv
