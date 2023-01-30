@@ -1,7 +1,4 @@
 {
-    "name": "lang-mc",
-    "extensions": [
-        ".mc",
-        ".mcm"
-    ]
+	"name": "lang-mc",
+	"extensions": [".mc", ".mcm"]
 }
