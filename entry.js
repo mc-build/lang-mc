@@ -694,8 +694,8 @@ consumer.Generic = list({
 				const { token } = _token
 				const match = token.matchAll(/(?<=\brun\b)/g)
 				let last_run = [...match].pop()
-				const command = token.substr(last_run.index + 3).trim()
-				const execute = token.substr(0, last_run.index + 3).trim()
+				const command = token.substr(last_run.index).trim()
+				const execute = token.substr(0, last_run.index).trim()
 				let useAltParent = true
 				let isCommand = true
 				if (command) {
