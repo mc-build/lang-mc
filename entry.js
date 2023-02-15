@@ -688,12 +688,15 @@ consumer.Generic = list({
 			},
 		},
 		{
-			match: ({ token }) => token.startsWith('execute') && token.indexOf('run') != -1,
+			match: ({ token }) => token.startsWith('execute') && /(?<=\brun\b)/g.test(token),
 			exec(file, tokens, func, parent, functionalparent) {
 				const _token = tokens.shift()
 				const { token } = _token
-				const command = token.substr(token.lastIndexOf('run') + 3).trim()
-				const execute = token.substr(0, token.lastIndexOf('run') + 3).trim()
+				const match = token.matchAll(/(?<=\brun\b)/g)
+				let last_run = [...match].pop()
+				console.log(last_run)
+				const command = token.substr(last_run.index + 3).trim()
+				const execute = token.substr(0, last_run.index + 3).trim()
 				let useAltParent = true
 				let isCommand = true
 				if (command) {
