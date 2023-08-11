@@ -94,7 +94,7 @@ loadFile.setPath(
 const loadFunction = new MultiFile(loadFile)
 
 class MCFunction extends File {
-	constructor(parent, top, intent) {
+	constructor(parent, top, intent, args) {
 		super()
 		this.parent = parent
 		this.top = top || this
@@ -103,6 +103,7 @@ class MCFunction extends File {
 		this._path = Math.random().toString(36).substr(2)
 		this.target = this
 		this.intent = intent
+		this.args = args
 	}
 	getHash() {
 		const c = crypto.createHash('md5').update(this.functions.join('\n'))
@@ -155,7 +156,7 @@ class MCFunction extends File {
 		}
 	}
 	toString() {
-		return 'function ' + this.namespace + ':' + this.getFunctionPath()
+		return 'function ' + this.namespace + ':' + this.getFunctionPath() + (this.args ? ' ' + this.args : '')
 	}
 
 	static setEnv(_env) {
