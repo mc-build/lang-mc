@@ -77,9 +77,10 @@ function resetScoreIdsForFile(file) {
 	scoreIds.delete(file)
 }
 function getMacro(filepath, dependent) {
-	if (!filepath.endsWith('.mcm')) {
-		filepath += '.mcm'
+	if (!(filepath.endsWith('.mcm') || filepath.endsWith('.mcbm'))) {
+		filepath += '.mcbm'
 	}
+
 	if (fs.existsSync(filepath)) {
 		if (!MacroCache[filepath]) {
 			MacroCache[filepath] = {
@@ -240,6 +241,7 @@ const libraries = Object.assign({}, ...(PROJECT_JSON.libs.map(loadLib) || []))
 
 const tokenize = str => {
 	let inML = false
+	str = str.replaceAll(/ \\[\t ]*$\r?\n[\t ]*/gm, ' ')
 	return str.split('\n').reduce((p, n, index) => {
 		n = n.trim()
 		if (n.startsWith('###')) inML = !inML
@@ -310,7 +312,7 @@ consumer.EntryOp = list({
 				const _token = tokens[0]
 				const { token } = _token
 				const target = token.substr(7).trim()
-				if (token.endsWith('.mcm')) {
+				if (token.endsWith('.mcm') || token.endsWith('.mcbm')) {
 					Macros = Object.assign(
 						Macros,
 						getMacro(
@@ -1281,7 +1283,7 @@ function MCM_LANG_HANDLER(file) {
 			})
 			getMacro(file)
 			for (let i of toUpdate) {
-				if (i.endsWith('.mc')) {
+				if (i.endsWith('.mc') || i.endsWith('.mcb')) {
 					MC_LANG_HANDLER(i)
 				} else {
 					MCM_LANG_HANDLER(i)
@@ -1305,17 +1307,19 @@ function MCM_LANG_HANDLER(file) {
 	}
 }
 
+function registerHandler(registry, extension, handler) {
+	if (registry.has(extension)) {
+		return logger.error(`handler registry already has extension '${extension}'`)
+	}
+	registry.set(extension, handler)
+	logger.info(`Registered handler or extension for '${extension}'`)
+}
+
 module.exports = function MC(registry) {
-	if (registry.has('.mc')) {
-		return logger.error("handler registry already has extension '.mc'")
-	}
-	registry.set('.mc', MC_LANG_HANDLER)
-	logger.info("registered handler or extension for '.mc'")
-	if (registry.has('.mcm')) {
-		return logger.error("handler registry already has extension '.mcm'")
-	}
-	registry.set('.mcm', MCM_LANG_HANDLER)
-	logger.info("registered handler or extension for '.mcm'")
+	registerHandler(registry, '.mc', MC_LANG_HANDLER)
+	registerHandler(registry, '.mcb', MC_LANG_HANDLER)
+	registerHandler(registry, '.mcm', MCM_LANG_HANDLER)
+	registerHandler(registry, '.mcbm', MCM_LANG_HANDLER)
 
 	return {
 		exported: {
