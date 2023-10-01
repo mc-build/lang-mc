@@ -1202,9 +1202,12 @@ function MC_LANG_HANDLER(file) {
 	}
 	included_file_list = []
 	const location = path.relative(SRC_DIR, file)
+	console.log(location, namespaceStack)
 	namespaceStack = [
 		...location
-			.substr(0, location.length - 3)
+			// Works for any file extension, not just .mc
+			.replace(/\.[^/.]+$/, '')
+			// .substr(0, location.length - 3)
 			.replace(/\\/g, '/')
 			.split('/'),
 	]
