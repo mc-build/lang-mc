@@ -239,26 +239,36 @@ function loadLib(json) {
 }
 const libraries = Object.assign({}, ...(PROJECT_JSON.libs.map(loadLib) || []))
 
-const tokenize = str => {
-	let inML = false
-	str = str.replaceAll(/ \\[\t ]*$\r?\n[\t ]*/gm, ' ')
-	return str.split('\n').reduce((p, n, index) => {
-		n = n.trim()
-		if (n.startsWith('###')) inML = !inML
-		if (inML || n[0] === '#' || !n) return p
-		if (n[0] === '\\' && n[1] == '#') n = n.slice(1)
-		if (n[0] === '}') {
-			p.push(new Token(index, '}'))
-			n = n.slice(1)
+const tokenize = code => {
+	// magical regex of magicalness and awesomness
+	const lineEndsWithOpeningBracket = /(?:(?:function .+?|block|run)\s?({\s*(?:{|with).+?$))|(^{.+?$)|({)$/
+	let isInMultiLineComment = false
+	// change multi line commands to single line commands
+	code = code.replaceAll(/ \\[\t ]*$\r?\n[\t ]*/gm, ' ')
+	return code.split('\n').reduce((tokens, line, index) => {
+		line = line.trim()
+		// if the line is a multi line comment indicator toggle the multi line comment state
+		if (line.startsWith('###')) isInMultiLineComment = !isInMultiLineComment
+		// if this is either the start or inside a multiline comment or the line is a comment or empty do not process it further
+		if (isInMultiLineComment || line[0] === '#' || !line) return tokens
+		// if the line is an escaped comment add it as is
+		if (line[0] === '\\' && line[1] == '#') line = line.slice(1)
+		// if the line starts with a closing block indicator (}) seperate it from the line
+		if (line[0] === '}') {
+			tokens.push(new Token(index, '}'))
+			line = line.slice(1)
 		}
-		if (n[n.length - 1] === '{') {
-			const v = n.slice(0, n.length - 1).trim()
-			if (v) p.push(new Token(index, v))
-			p.push(new Token(index, '{'))
-		} else if (n) {
-			p.push(new Token(index, n))
+		// if the line ends with an opening block seperator ({) seperate it from the line
+		let match = String(line).match(lineEndsWithOpeningBracket)
+		if (match) {
+			let post = match[1] || match[2] || match[3]
+			const preBlockValue = line.slice(0, line.length - post.length).trim()
+			if (preBlockValue) tokens.push(new Token(index, preBlockValue))
+			tokens.push(new Token(index, post.trim()))
+		} else if (line) {
+			tokens.push(new Token(index, line))
 		}
-		return p
+		return tokens
 	}, [])
 }
 
@@ -488,7 +498,7 @@ consumer.Function = (file, tokens, opts = {}) => {
 	func.namespace = namespaceStack[0]
 	func.setPath(namespaceStack.slice(1).concat(name).join('/'))
 	validate_next_destructive(tokens, '{')
-	while (tokens[0].token != '}' && tokens[0]) {
+	while (tokens[0] && tokens[0].token != '}') {
 		consumer.Generic(file, tokens, func, func, func)
 	}
 	validate_next_destructive(tokens, '}')
@@ -713,7 +723,7 @@ consumer.Generic = list({
 					}
 					const temp = []
 					let count = 1
-					if (lastInLine && lastInLine.token === '{') {
+					if (lastInLine && lastInLine.token.startsWith('{')) {
 						let tok = tokens.shift()
 						let last_line = tok.line
 						temp.push(tok)
@@ -746,7 +756,7 @@ consumer.Generic = list({
 				)
 				if (innerFunc.functions.length > 1) {
 					innerFunc.confirm(file)
-					func.addCommand(execute + ' function ' + innerFunc.getReference())
+					func.addCommand(execute + ' ' + innerFunc.toString())
 				} else {
 					if (innerFunc.functions.length == 0) {
 						const { line } = tokens.shift()
@@ -754,7 +764,7 @@ consumer.Generic = list({
 					}
 					if (innerFunc.functions[0]?.indexOf('$block') != -1 && !isCommand) {
 						innerFunc.confirm(file)
-						func.addCommand(execute + ' function ' + innerFunc.getReference())
+						func.addCommand(execute + ' ' + innerFunc.toString())
 					} else {
 						func.addCommand(execute + ' ' + innerFunc.functions[0])
 					}
@@ -994,7 +1004,18 @@ consumer.Generic = list({
 })
 
 consumer.Block = (file, tokens, reason, opts = {}, parent, functionalparent) => {
-	validate_next_destructive(tokens, '{')
+	let function_arguments
+	let token = tokens[0].token.trim()
+
+	if (!token.startsWith('{')) {
+		throw new CompilerError(`Expected '{' but found '${token}' instead`, tokens[0].line)
+	} else if (token === '{') {
+		tokens.shift()
+	} else {
+		function_arguments = tokens.shift().token.substr(1).trim()
+		console.log(token, function_arguments)
+	}
+
 	if (!reason) reason = 'none'
 	// just a clever way to only allocate a number if the namespace is used, allows me to define more namespaces as time goes on
 	let name = null
@@ -1009,7 +1030,7 @@ consumer.Block = (file, tokens, reason, opts = {}, parent, functionalparent) => 
 			'/' +
 			(id[reason] = (id[reason] == undefined ? -1 : id[reason]) + 1)
 	}
-	const func = new MCFunction(parent, functionalparent)
+	const func = new MCFunction(parent, functionalparent, null, function_arguments)
 	if (functionalparent === null) {
 		functionalparent = func
 	}
@@ -1022,7 +1043,7 @@ consumer.Block = (file, tokens, reason, opts = {}, parent, functionalparent) => 
 			func.addCommand(command)
 		}
 	}
-	while (tokens[0].token != '}' && tokens[0]) {
+	while (tokens[0] && tokens[0].token != '}') {
 		consumer.Generic(file, tokens, func, func, reason == 'conditional' ? functionalparent : func)
 	}
 	if (opts.append) {
