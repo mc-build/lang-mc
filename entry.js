@@ -649,7 +649,7 @@ consumer.Generic = list({
 			},
 		},
 		{
-			match: ({ token }) => /^!IF\(/.test(token),
+			match: ({ token }) => /^!?IF\(/.test(token),
 			exec(file, tokens, func) {
 				const _token = tokens.shift()
 				const { token } = _token
