@@ -241,7 +241,7 @@ const libraries = Object.assign({}, ...(PROJECT_JSON.libs.map(loadLib) || []))
 
 const tokenize = code => {
 	// magical regex of magicalness and awesomness
-	const lineEndsWithOpeningBracket = /(?:(?:function .+?|block|run)\s?({\s*(?:{|with).+?$))|(^{.+?$)|({)$/
+	const lineEndsWithOpeningBracket = /(?:(?:function .+?|block|run|\)|else)\s?({\s*(?:{|with).+?$))|(^{.+?$)|({)$/
 	let isInMultiLineComment = false
 	// change multi line commands to single line commands
 	code = code.replaceAll(/ \\[\t ]*$\r?\n[\t ]*/gm, ' ')
@@ -1013,7 +1013,6 @@ consumer.Block = (file, tokens, reason, opts = {}, parent, functionalparent) => 
 		tokens.shift()
 	} else {
 		function_arguments = tokens.shift().token.substr(1).trim()
-		console.log(token, function_arguments)
 	}
 
 	if (!reason) reason = 'none'
